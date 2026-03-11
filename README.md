@@ -57,3 +57,125 @@ This project demonstrates a complete membership management workflow including au
 ---
 
 # Project Structure
+
+
+VYAY
+│
+├── frontend
+│ ├── App.js
+│ ├── screens/
+│ ├── components/
+│ ├── assets/
+│ ├── api.js
+│ └── package.json
+│
+├── backend
+│ ├── server.js
+│ ├── routes/
+│ │ ├── auth.js
+│ │ ├── billing.js
+│ │ ├── branches.js
+│ │ ├── checkin.js
+│ │ └── classes.js
+│ │
+│ ├── middleware/
+│ │ ├── authMiddleware.js
+│ │ ├── requireAdmin.js
+│ │ └── roleMiddleware.js
+│ │
+│ ├── db.js
+│ ├── stripeWebhook.js
+│ └── package.json
+│
+└── README.md
+
+
+---
+
+# Installation
+
+## 1. Clone Repository
+
+
+git clone https://github.com/Kidder0/VYAY.git
+
+cd VYAY
+
+
+---
+
+# Backend Setup
+
+
+cd backend
+npm install
+npm start
+
+
+Server will run on:
+
+
+http://localhost:5000
+
+
+---
+
+# Frontend Setup
+
+
+cd frontend
+npm install
+npx expo start
+
+
+Scan the QR code using the **Expo Go app** to run the mobile application.
+
+---
+
+# Environment Variables
+
+Create a `.env` file inside the backend folder.
+
+Example:
+
+
+PORT=5000
+DATABASE_URL=your_database_url
+JWT_SECRET=your_secret
+STRIPE_SECRET_KEY=your_key
+STRIPE_WEBHOOK_SECRET=your_webhook_secret
+
+
+---
+
+# API Endpoints
+
+Example endpoints:
+
+
+POST /api/auth/register
+POST /api/auth/login
+GET /api/membership
+POST /api/checkin
+GET /api/classes
+POST /api/billing/create-checkout-session
+
+
+---
+
+# Future Improvements
+
+- Admin dashboard
+- Push notifications
+- Attendance analytics
+- Mobile UI improvements
+- Membership renewal reminders
+
+---
+
+# Author
+
+Rakesh Reddy Jammuladinne
+
+University of North Texas  
+Master's in Cybersecurity
