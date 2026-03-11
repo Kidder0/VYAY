@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>GymPro Staff Check-In</title>
+  <style>
+    body { font-family: Arial; padding: 20px; max-width: 520px; margin: auto; background:#f4f7fc; }
+    h2 { margin-bottom: 10px; }
+    label { display:block; margin-top: 12px; font-weight: 700; }
+    input, select { width: 100%; padding: 15px; font-size: 18px; border-radius: 10px; border: 1px solid #d1d5db; background: #fff; }
+    .box { margin-top: 20px; padding: 15px; border-radius: 10px; }
+    .ok { background: #d1fae5; border: 1px solid #16a34a; }
+    .bad { background: #fee2e2; border: 1px solid #dc2626; }
+    button { width: 100%; border: none; border-radius: 10px; cursor: pointer; }
+    #enableSound { padding:12px 16px; font-size:16px; margin: 10px 0 6px; background:#2563eb; color:#fff; }
+    .hint { color:#6b7280; font-size: 13px; margin-top: 6px; }
+    .row { margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <h2>🏋️ GymPro Staff Check-In</h2>
+
+  <div class="row">
+    <label for="branchSelect">Select Branch</label>
+    <select id="branchSelect"></select>
+    <div class="hint" id="branchHint">Loading branches…</div>
+  </div>
+
+  <button id="enableSound">🔊 Enable Sound</button>
+
+  <label for="code">Scan Token / Membership Code</label>
+  <input id="code" placeholder="Scan rotating barcode..." autofocus />
+
+  <div id="result"></div>
+
+  <script>
+    const input = document.getElementById("code");
+    const result = document.getElementById("result");
+    const enableBtn = document.getElementById("enableSound");
+    const branchSelect = document.getElementById("branchSelect");
+    const branchHint = document.getElementById("branchHint");
+
+    // 🔥 AUTO-FOCUS LOOP (barcode gun safe)
+    setInterval(() => {
+      if (document.activeElement !== input) {
+        input.focus();
+      }
+    }, 1000);
+
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    }
+
+    function beep(type) {
+      if (!audioCtx) return;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g);
+      g.connect(audioCtx.destination);
+
+      o.frequency.value = type === "success" ? 880 : 220;
+      o.type = "sine";
+      g.gain.setValueAtTime(0.18, audioCtx.currentTime);
+      o.start();
+      setTimeout(() => { try { o.stop(); } catch(e){} }, type === "success" ? 120 : 300);
+    }
+
+    enableBtn.addEventListener("click", () => {
+      initAudio();
+      beep("success");
+      enableBtn.innerText = "✅ Sound Enabled";
+    });
+
+    async function loadBranches() {
+      try {
+        branchHint.textContent = "Loading branches…";
+        branchSelect.innerHTML = "";
+
+        const res = await fetch("/api/branches/public");
+        const data = await res.json();
+        const branches = data.branches || [];
+
+        if (!res.ok) throw new Error(data.message || "Failed");
+
+        branches.forEach(b => {
+          const opt = document.createElement("option");
+          opt.value = b.id;
+          opt.textContent = b.name || `Branch ${b.id}`;
+          branchSelect.appendChild(opt);
+        });
+
+        branchHint.textContent = `Loaded ${branches.length} branches.`;
+      } catch (e) {
+        branchHint.textContent = "Failed to load branches.";
+      }
+    }
+
+    function buildPayload(scannedText, branchId) {
+      const value = scannedText.trim();
+      const isToken = value.split(".").length === 3;
+      if (isToken) {
+        return { token: value, branch_id: Number(branchId) };
+      }
+      return { membership_code: value, branch_id: Number(branchId) };
+    }
+
+    async function verify(scannedText) {
+      const branchId = branchSelect.value;
+      if (!branchId) {
+        result.innerHTML = `<div class="box bad"><b>Select branch first</b></div>`;
+        beep("error");
+        return;
+      }
+
+      result.innerHTML = "Checking...";
+
+      try {
+        const payload = buildPayload(scannedText, branchId);
+
+        const res = await fetch("/api/checkin/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        const success =
+          data.message === "Check-in successful" ||
+          data.message === "Already checked in today";
+
+        beep(success ? "success" : "error");
+
+        result.innerHTML = `
+          <div class="box ${success ? "ok" : "bad"}">
+            <b>${data.message}</b><br/>
+            ${data.user?.name ? "Member: " + data.user.name : ""}
+            ${data.checkin_time ? "<br/>Time: " + new Date(data.checkin_time).toLocaleString() : ""}
+          </div>
+        `;
+      } catch (e) {
+        beep("error");
+        result.innerHTML = `<div class="box bad"><b>Server error</b></div>`;
+      }
+
+      input.value = "";
+      input.focus();
+    }
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const scanned = input.value.trim();
+        if (scanned) verify(scanned);
+      }
+    });
+
+    loadBranches();
+  </script>
+</body>
+</html>
