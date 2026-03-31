@@ -7,17 +7,59 @@ const authenticateToken = require("../middleware/authMiddleware");
 
 console.log("Checkin routes loaded");
 
-// ✅ GET /api/checkin/code (Member app)
-// - If active + not expired => returns barcode
-// - Else => returns plans (no barcode)
+async function resolveMembershipPlanName(membershipPlanId) {
+  if (!membershipPlanId) return null;
+
+  const raw = String(membershipPlanId).trim();
+  const lower = raw.toLowerCase();
+
+  // Stripe / stored keys
+  if (lower === "basic") return "Build";
+  if (lower === "pro") return "Dominate";
+
+  // Direct readable values
+  if (lower === "build") return "Build";
+  if (lower === "dominate") return "Dominate";
+
+  // Fallback: lookup in membership_plans table by id or text
+  try {
+    const planLookup = await pool.query(
+      `
+      SELECT name
+      FROM membership_plans
+      WHERE id::text = $1
+         OR LOWER(name) = LOWER($1)
+      LIMIT 1
+      `,
+      [raw]
+    );
+
+    if (planLookup.rows.length > 0) {
+      return planLookup.rows[0].name;
+    }
+  } catch (err) {
+    console.error("resolveMembershipPlanName lookup error:", err);
+  }
+
+  return null;
+}
+
+// GET /api/checkin/code
 router.get("/code", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
 
   try {
     const result = await pool.query(
-      `SELECT membership_code, membership_status, membership_expiry
-       FROM users
-       WHERE id = $1`,
+      `
+      SELECT
+        membership_code,
+        membership_status,
+        membership_expiry,
+        membership_plan_id
+      FROM users
+      WHERE id = $1
+      LIMIT 1
+      `,
       [userId]
     );
 
@@ -25,18 +67,26 @@ router.get("/code", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const { membership_code, membership_status, membership_expiry } = result.rows[0];
+    const {
+      membership_code,
+      membership_status,
+      membership_expiry,
+      membership_plan_id,
+    } = result.rows[0];
+
+    const membership_plan_name = await resolveMembershipPlanName(membership_plan_id);
 
     const now = new Date();
     const expiry = membership_expiry ? new Date(membership_expiry) : null;
 
-    // ❌ If NOT active or expired => show plans
     if (membership_status !== "active" || !expiry || expiry < now) {
       const plansResult = await pool.query(
-        `SELECT id, name, price
-         FROM membership_plans
-         WHERE is_active = true
-         ORDER BY price ASC`
+        `
+        SELECT id, name, price
+        FROM membership_plans
+        WHERE is_active = true
+        ORDER BY price ASC
+        `
       );
 
       const plans = plansResult.rows.map((p) => ({
@@ -53,17 +103,18 @@ router.get("/code", authenticateToken, async (req, res) => {
         show_plans: true,
         membership_status: membership_status || "inactive",
         membership_expiry,
+        membership_plan_name,
         message: "No active membership. Please choose a plan to enable check-in.",
         plans,
       });
     }
 
-    // membership is active but code missing
     if (!membership_code) {
       return res.status(200).json({
         show_plans: false,
         membership_status,
         membership_expiry,
+        membership_plan_name,
         membership_code: null,
         barcode: null,
         message: "Membership active but membership_code missing. Please contact support.",
@@ -83,6 +134,7 @@ router.get("/code", authenticateToken, async (req, res) => {
       show_plans: false,
       membership_status,
       membership_expiry,
+      membership_plan_name,
       membership_code,
       barcode: `data:image/png;base64,${barcodeBuffer.toString("base64")}`,
     });
@@ -92,17 +144,22 @@ router.get("/code", authenticateToken, async (req, res) => {
   }
 });
 
-// ✅ GET /api/checkin/qr-token (Member app)
-// Returns rotating token (changes every 30 seconds).
+// GET /api/checkin/qr-token
 router.get("/qr-token", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
 
     const result = await pool.query(
-      `SELECT membership_code, membership_status, membership_expiry
-       FROM users
-       WHERE id = $1
-       LIMIT 1`,
+      `
+      SELECT
+        membership_code,
+        membership_status,
+        membership_expiry,
+        membership_plan_id
+      FROM users
+      WHERE id = $1
+      LIMIT 1
+      `,
       [userId]
     );
 
@@ -110,12 +167,18 @@ router.get("/qr-token", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const { membership_code, membership_status, membership_expiry } = result.rows[0];
+    const {
+      membership_code,
+      membership_status,
+      membership_expiry,
+      membership_plan_id,
+    } = result.rows[0];
+
+    const membership_plan_name = await resolveMembershipPlanName(membership_plan_id);
 
     const now = new Date();
     const expiry = membership_expiry ? new Date(membership_expiry) : null;
 
-    // must be active and not expired
     if (membership_status !== "active" || !expiry || expiry < now) {
       return res.status(403).json({ message: "No active membership" });
     }
@@ -130,19 +193,24 @@ router.get("/qr-token", authenticateToken, async (req, res) => {
 
     const secret = process.env.QR_SECRET || process.env.JWT_SECRET;
     if (!secret) {
-      return res.status(500).json({ message: "Missing QR_SECRET or JWT_SECRET in .env" });
+      return res.status(500).json({
+        message: "Missing QR_SECRET or JWT_SECRET in .env",
+      });
     }
 
     const payload = `${membership_code}.${window}`;
-    const signature = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+    const signature = crypto
+      .createHmac("sha256", secret)
+      .update(payload)
+      .digest("hex");
 
-    // token format: code.window.signature
     const token = `${membership_code}.${window}.${signature}`;
 
     return res.status(200).json({
       token,
       expires_in_seconds: windowSeconds - (nowSec % windowSeconds),
       membership_expiry,
+      membership_plan_name,
     });
   } catch (err) {
     console.error("qr-token error:", err);
@@ -150,21 +218,23 @@ router.get("/qr-token", authenticateToken, async (req, res) => {
   }
 });
 
-// ✅ GET /api/checkin/history (Member app)
+// GET /api/checkin/history
 router.get("/history", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
 
     const result = await pool.query(
-      `SELECT
-         cl.checkin_time,
-         cl.branch_id,
-         b.name AS branch_name
-       FROM checkin_logs cl
-       LEFT JOIN branches b ON b.id = cl.branch_id
-       WHERE cl.user_id = $1
-       ORDER BY cl.checkin_time DESC
-       LIMIT 30`,
+      `
+      SELECT
+        cl.checkin_time,
+        cl.branch_id,
+        b.name AS branch_name
+      FROM checkin_logs cl
+      LEFT JOIN branches b ON b.id = cl.branch_id
+      WHERE cl.user_id = $1
+      ORDER BY cl.checkin_time DESC
+      LIMIT 30
+      `,
       [userId]
     );
 
@@ -175,8 +245,7 @@ router.get("/history", authenticateToken, async (req, res) => {
   }
 });
 
-// ✅ POST /api/checkin/verify (Staff scanner)
-// body: { token, branch_id } OR { membership_code, branch_id }
+// POST /api/checkin/verify
 router.post("/verify", async (req, res) => {
   try {
     const { token, membership_code, branch_id } = req.body;
@@ -185,15 +254,14 @@ router.post("/verify", async (req, res) => {
       return res.status(400).json({ message: "branch_id is required" });
     }
 
-    // ✅ Resolve membership code from token OR membership_code
     let resolvedMembershipCode = null;
 
     if (token) {
       const secret = process.env.QR_SECRET || process.env.JWT_SECRET;
       if (!secret) {
-        return res
-          .status(500)
-          .json({ message: "Missing QR_SECRET or JWT_SECRET in .env" });
+        return res.status(500).json({
+          message: "Missing QR_SECRET or JWT_SECRET in .env",
+        });
       }
 
       const parts = String(token).split(".");
@@ -208,7 +276,6 @@ router.post("/verify", async (req, res) => {
         return res.status(400).json({ message: "Invalid token content" });
       }
 
-      // ✅ Allow drift: current window ±1 (scan delay)
       const windowSeconds = 30;
       const nowWindow = Math.floor(Math.floor(Date.now() / 1000) / windowSeconds);
       const allowedWindows = new Set([nowWindow, nowWindow - 1, nowWindow + 1]);
@@ -234,29 +301,36 @@ router.post("/verify", async (req, res) => {
       resolvedMembershipCode = String(code).trim();
     } else {
       if (!membership_code) {
-        return res
-          .status(400)
-          .json({ message: "token or membership_code is required" });
+        return res.status(400).json({
+          message: "token or membership_code is required",
+        });
       }
       resolvedMembershipCode = String(membership_code).trim();
     }
 
-    // ✅ Branch exists?
     const branchRes = await pool.query(
       `SELECT id, name FROM branches WHERE id = $1 LIMIT 1`,
       [branch_id]
     );
+
     if (branchRes.rows.length === 0) {
       return res.status(404).json({ message: "Invalid branch_id" });
     }
+
     const branch = branchRes.rows[0];
 
-    // ✅ Find user by resolved membership code
     const userResult = await pool.query(
-      `SELECT id, name, membership_status, membership_plan_id, home_club_id
-       FROM users
-       WHERE membership_code = $1
-       LIMIT 1`,
+      `
+      SELECT
+        id,
+        name,
+        membership_status,
+        membership_plan_id,
+        home_club_id
+      FROM users
+      WHERE membership_code = $1
+      LIMIT 1
+      `,
       [resolvedMembershipCode]
     );
 
@@ -270,21 +344,31 @@ router.post("/verify", async (req, res) => {
       return res.status(403).json({ message: "Membership inactive" });
     }
 
-    // ✅ Plan access scope (SAFE DEFAULT)
     let accessScope = "ALL_CLUBS";
+
     if (user.membership_plan_id) {
-      const planRes = await pool.query(
-        `SELECT access_scope FROM membership_plans WHERE id = $1 LIMIT 1`,
-        [user.membership_plan_id]
-      );
-      accessScope = planRes.rows[0]?.access_scope || "ALL_CLUBS";
+      const normalized = String(user.membership_plan_id).toLowerCase();
+
+      if (normalized === "basic") {
+        accessScope = "HOME_ONLY";
+      } else if (normalized === "pro") {
+        accessScope = "ALL_CLUBS";
+      } else {
+        const planRes = await pool.query(
+          `SELECT access_scope FROM membership_plans WHERE id = $1 LIMIT 1`,
+          [user.membership_plan_id]
+        );
+        accessScope = planRes.rows[0]?.access_scope || "ALL_CLUBS";
+      }
     }
 
-    // ✅ Restrict HOME_ONLY to home club
     if (accessScope === "HOME_ONLY") {
       if (!user.home_club_id) {
-        return res.status(403).json({ message: "Home club not set for this member" });
+        return res.status(403).json({
+          message: "Home club not set for this member",
+        });
       }
+
       if (Number(branch_id) !== Number(user.home_club_id)) {
         return res.status(403).json({
           message: "Access denied: this plan allows check-in only at the home club",
@@ -293,14 +377,15 @@ router.post("/verify", async (req, res) => {
       }
     }
 
-    // ✅ Already checked in today?
     const alreadyCheckedIn = await pool.query(
-      `SELECT checkin_time, branch_id
-       FROM checkin_logs
-       WHERE user_id = $1
-         AND checkin_time::date = CURRENT_DATE
-       ORDER BY checkin_time DESC
-       LIMIT 1`,
+      `
+      SELECT checkin_time, branch_id
+      FROM checkin_logs
+      WHERE user_id = $1
+        AND checkin_time::date = CURRENT_DATE
+      ORDER BY checkin_time DESC
+      LIMIT 1
+      `,
       [user.id]
     );
 
@@ -320,11 +405,12 @@ router.post("/verify", async (req, res) => {
       });
     }
 
-    // ✅ Log check-in with branch_id
     const logResult = await pool.query(
-      `INSERT INTO checkin_logs (user_id, branch_id)
-       VALUES ($1, $2)
-       RETURNING checkin_time`,
+      `
+      INSERT INTO checkin_logs (user_id, branch_id)
+      VALUES ($1, $2)
+      RETURNING checkin_time
+      `,
       [user.id, branch_id]
     );
 

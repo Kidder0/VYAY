@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   Linking,
   ScrollView,
   Animated,
@@ -14,27 +13,48 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiFetch } from "../api";
 
 const COLORS = {
-  yellow: "#FFD700",
-  black: "#0B0B0B",
+  bg: "#000000",
+  bgDeep: "#050505",
   card: "#121212",
-  card2: "#161616",
-  border: "rgba(255,255,255,0.10)",
-  muted: "rgba(255,255,255,0.65)",
+  cardSoft: "#171717",
+  border: "#232323",
+  borderSoft: "#2E2E2E",
+  primary: "#3B82F6",
+  primarySoft: "#93C5FD",
   white: "#FFFFFF",
+  softWhite: "#E5E7EB",
+  muted: "#A1A1AA",
+  muted2: "#71717A",
+  success: "#22C55E",
   danger: "#EF4444",
-  ok: "#22C55E",
 };
 
 function resolveBillingPlanId(plan) {
   const raw = String(plan?.name || "").trim().toLowerCase();
 
+  if (raw.includes("build")) return "basic";
+  if (raw.includes("dominate")) return "pro";
   if (raw.includes("basic")) return "basic";
   if (raw.includes("pro")) return "pro";
 
   return null;
+}
+
+function normalizeMembershipPlanName(value) {
+  const raw = String(value || "").trim();
+  const lower = raw.toLowerCase();
+
+  if (!raw) return "Membership";
+  if (lower === "basic") return "Build";
+  if (lower === "pro") return "Dominate";
+  if (lower.includes("build")) return "Build";
+  if (lower.includes("dominate")) return "Dominate";
+
+  return raw;
 }
 
 export default function CheckinScreen({ navigation }) {
@@ -56,9 +76,53 @@ export default function CheckinScreen({ navigation }) {
   const membershipExpiry = checkinData.membership_expiry || null;
   const membershipCode = checkinData.membership_code || "";
   const barcode = checkinData.barcode || null;
+  const membershipPlanName = normalizeMembershipPlanName(
+    checkinData.membership_plan_name || checkinData.membership_type || ""
+  );
 
   const refreshAll = async () => {
     await queryClient.invalidateQueries({ queryKey: ["checkin"] });
+  };
+
+  const goToHistory = () => navigation.navigate("CheckinHistory");
+
+  const startCheckout = async (plan) => {
+    try {
+      const billingPlanId = resolveBillingPlanId(plan);
+
+      if (!billingPlanId) {
+        setFlash({
+          visible: true,
+          type: "error",
+          text: "This plan is not linked to billing yet.",
+        });
+        setTimeout(() => setFlash({ visible: false, type: "error", text: "" }), 1600);
+        return;
+      }
+
+      const res = await apiFetch("/api/billing/create-checkout-session", {
+        method: "POST",
+        body: JSON.stringify({
+          planId: billingPlanId,
+          successUrl: "gympro://checkin?status=success",
+          cancelUrl: "gympro://checkin?status=cancel",
+        }),
+      });
+
+      if (!res?.url) {
+        throw new Error("Checkout URL not received");
+      }
+
+      setPolling(true);
+      await WebBrowser.openBrowserAsync(res.url);
+    } catch (err) {
+      setFlash({
+        visible: true,
+        type: "error",
+        text: String(err?.message || "Unable to start checkout"),
+      });
+      setTimeout(() => setFlash({ visible: false, type: "error", text: "" }), 1800);
+    }
   };
 
   useEffect(() => {
@@ -67,12 +131,12 @@ export default function CheckinScreen({ navigation }) {
     Animated.sequence([
       Animated.timing(shimmer, {
         toValue: 1,
-        duration: 150,
+        duration: 180,
         useNativeDriver: true,
       }),
       Animated.timing(shimmer, {
         toValue: 0,
-        duration: 300,
+        duration: 320,
         useNativeDriver: true,
       }),
     ]).start();
@@ -99,11 +163,11 @@ export default function CheckinScreen({ navigation }) {
       const url = event?.url || "";
 
       if (url.includes("status=success")) {
-        setFlash({ visible: true, type: "success", text: "✅ Payment completed!" });
-        setTimeout(() => setFlash({ visible: false, type: "success", text: "" }), 1200);
-      } else if (url.includes("status=error")) {
-        setFlash({ visible: true, type: "error", text: "❌ Payment failed" });
-        setTimeout(() => setFlash({ visible: false, type: "error", text: "" }), 1200);
+        setFlash({ visible: true, type: "success", text: "Payment completed" });
+        setTimeout(() => setFlash({ visible: false, type: "success", text: "" }), 1400);
+      } else if (url.includes("status=error") || url.includes("status=cancel")) {
+        setFlash({ visible: true, type: "error", text: "Payment canceled or failed" });
+        setTimeout(() => setFlash({ visible: false, type: "error", text: "" }), 1400);
       }
     });
 
@@ -135,7 +199,10 @@ export default function CheckinScreen({ navigation }) {
   if (checkinQuery.isLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-        <ActivityIndicator size="large" style={{ marginTop: 100 }} color={COLORS.yellow} />
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Loading your keytag...</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -143,81 +210,76 @@ export default function CheckinScreen({ navigation }) {
   if (checkinQuery.isError) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-        <View style={styles.container}>
-          <Text style={styles.title}>GymPro Check-in</Text>
-          <Text style={styles.subTitle}>
-            {String(checkinQuery.error?.message || "Error")}
-          </Text>
+        <View style={styles.centerWrap}>
+          <View style={styles.errorCard}>
+            <Text style={styles.pageTitle}>Check-in</Text>
+            <Text style={styles.pageSubTitle}>
+              {String(checkinQuery.error?.message || "Error loading check-in")}
+            </Text>
 
-          <TouchableOpacity style={styles.primaryBtn} onPress={refreshAll}>
-            <Text style={styles.primaryBtnText}>Retry</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryBtn} onPress={refreshAll} activeOpacity={0.9}>
+              <Text style={styles.primaryBtnText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
-  const startCheckout = async (plan) => {
-    try {
-      const billingPlanId = resolveBillingPlanId(plan);
-
-      if (!billingPlanId) {
-        Alert.alert(
-          "Plan Error",
-          "This plan is not mapped yet in billing. Use Basic or Pro."
-        );
-        return;
-      }
-
-      const res = await apiFetch("/api/billing/create-checkout-session", {
-        method: "POST",
-        body: JSON.stringify({ planId: billingPlanId }),
-      });
-
-      if (!res?.url) {
-        Alert.alert("Error", "No checkout URL received");
-        return;
-      }
-
-      await WebBrowser.openBrowserAsync(res.url);
-      setPolling(true);
-      refreshAll();
-    } catch (err) {
-      Alert.alert("Checkout failed", err.message || "Unable to start checkout");
-    }
-  };
-
-  const goToHistory = () => navigation?.navigate?.("CheckinHistory");
-
   if (shouldShowPlans) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-        <ScrollView contentContainerStyle={styles.containerScroll}>
-          <Text style={styles.title}>Choose a Plan</Text>
-          <Text style={styles.subTitle}>
-            You must enroll in a plan to enable check-in.
-          </Text>
+        {flash.visible ? (
+          <View
+            style={[
+              styles.flashOverlay,
+              flash.type === "success" ? styles.flashSuccess : styles.flashError,
+            ]}
+          >
+            <Text style={styles.flashText}>{flash.text}</Text>
+          </View>
+        ) : null}
 
-          <TouchableOpacity style={styles.outlineBtn} onPress={goToHistory} activeOpacity={0.9}>
-            <Text style={styles.outlineBtnText}>View History</Text>
+        <ScrollView contentContainerStyle={styles.containerScroll} showsVerticalScrollIndicator={false}>
+          <View style={styles.headerWrap}>
+            <Text style={styles.pageTitle}>Choose a Plan</Text>
+            <Text style={styles.pageSubTitle}>
+              You need an active membership to unlock your check-in barcode.
+            </Text>
+          </View>
+
+          <TouchableOpacity style={styles.secondaryWideBtn} onPress={goToHistory} activeOpacity={0.9}>
+            <Text style={styles.secondaryWideBtnText}>View History</Text>
           </TouchableOpacity>
 
           {plans.length === 0 ? (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Plans not loaded</Text>
-              <Text style={styles.cardSub}>Tap refresh to try again.</Text>
+            <View style={styles.planCard}>
+              <Text style={styles.planTitle}>Plans not loaded</Text>
+              <Text style={styles.planSub}>Tap refresh to try again.</Text>
 
-              <TouchableOpacity style={styles.outlineBtn} onPress={refreshAll} activeOpacity={0.9}>
-                <Text style={styles.outlineBtnText}>Refresh</Text>
+              <TouchableOpacity style={styles.primaryBtn} onPress={refreshAll} activeOpacity={0.9}>
+                <Text style={styles.primaryBtnText}>Refresh</Text>
               </TouchableOpacity>
             </View>
           ) : (
             plans.map((p) => (
-              <View key={p.id} style={[styles.card, { marginTop: 12 }]}>
-                <Text style={styles.cardTitle}>{p.name}</Text>
-                <Text style={styles.cardSub}>
-                  ${Number(p.price || 0).toFixed(2)} / {p.period || "month"}
-                </Text>
+              <View key={p.id} style={styles.planCard}>
+                <View style={styles.planTopRow}>
+                  <View style={styles.planIconWrap}>
+                    <Ionicons
+                      name={String(p.name || "").toLowerCase().includes("dominate") ? "flash" : "barbell"}
+                      size={18}
+                      color={COLORS.primary}
+                    />
+                  </View>
+
+                  <View style={styles.planTextWrap}>
+                    <Text style={styles.planTitle}>{p.name}</Text>
+                    <Text style={styles.planPrice}>
+                      ${Number(p.price || 0).toFixed(2)} / {p.period || "month"}
+                    </Text>
+                  </View>
+                </View>
 
                 {!!p.features && (
                   <Text style={styles.featureText}>
@@ -237,7 +299,7 @@ export default function CheckinScreen({ navigation }) {
           )}
 
           {polling ? (
-            <Text style={styles.helperText}>Waiting for payment confirmation…</Text>
+            <Text style={styles.helperText}>Waiting for payment confirmation...</Text>
           ) : (
             <Text style={styles.helperText}>
               After payment, return here and refresh if needed.
@@ -261,201 +323,438 @@ export default function CheckinScreen({ navigation }) {
         </View>
       ) : null}
 
-      <View style={styles.container}>
-        <Text style={styles.title}>GymPro Check-in</Text>
-        <Text style={styles.subTitle}>Show this barcode at the front desk</Text>
-
-        <View style={styles.card}>
-          {!barcode ? (
-            <Text style={[styles.cardSub, { color: COLORS.danger }]}>
-              Barcode missing. Tap Refresh.
-            </Text>
-          ) : (
-            <View style={styles.barcodeFrame}>
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.shimmerOverlay,
-                  {
-                    opacity: shimmer.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, 0.18],
-                    }),
-                  },
-                ]}
-              />
-
-              <Image source={{ uri: barcode }} style={styles.barcodeImage} />
-            </View>
-          )}
-
-          <Text style={styles.codeText}>
-            Membership Code: {membershipCode || "Not available"}
-          </Text>
-
-          {membershipExpiry ? (
-            <Text style={styles.expiryText}>
-              Membership Expires: {new Date(membershipExpiry).toLocaleDateString()}
-            </Text>
-          ) : null}
-
-          <TouchableOpacity style={styles.outlineBtn} onPress={refreshAll} activeOpacity={0.9}>
-            <Text style={styles.outlineBtnText}>Refresh</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.outlineBtn} onPress={goToHistory} activeOpacity={0.9}>
-            <Text style={styles.outlineBtnText}>View History</Text>
-          </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.containerScroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerWrap}>
+          <Text style={styles.pageTitle}>Member Keytag</Text>
+          <Text style={styles.pageSubTitle}>Show this at the front desk to check in</Text>
         </View>
-      </View>
+
+        <View style={styles.membershipCard}>
+          <View style={styles.cardGlowOne} />
+          <View style={styles.cardGlowTwo} />
+
+          <View style={styles.topBadgeRow}>
+            <Text style={styles.brandText}>VYAY FITNESS</Text>
+            <View style={styles.activeBadge}>
+              <Text style={styles.activeBadgeText}>ACTIVE MEMBER</Text>
+            </View>
+          </View>
+
+          <View style={styles.planBlock}>
+            <Text style={styles.membershipLabel}>{membershipPlanName}</Text>
+            <Text style={styles.tagline}>Train hard. Stay consistent.</Text>
+          </View>
+
+          <View style={styles.barcodeOuter}>
+            {!barcode ? (
+              <View style={styles.barcodeMissingBox}>
+                <MaterialCommunityIcons name="barcode-off" size={34} color={COLORS.danger} />
+                <Text style={styles.barcodeMissingText}>Barcode missing. Tap refresh.</Text>
+              </View>
+            ) : (
+              <View style={styles.barcodeFrame}>
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.shimmerOverlay,
+                    {
+                      opacity: shimmer.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 0.14],
+                      }),
+                    },
+                  ]}
+                />
+                <Image source={{ uri: barcode }} style={styles.barcodeImage} resizeMode="contain" />
+              </View>
+            )}
+          </View>
+
+          <View style={styles.codeBlock}>
+            <Text style={styles.memberCodeLabel}>Membership Code</Text>
+            <Text style={styles.memberCodeValue}>{membershipCode || "Not available"}</Text>
+
+            {membershipExpiry ? (
+              <Text style={styles.expiryText}>
+                Valid until {new Date(membershipExpiry).toLocaleDateString()}
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.secondaryBtnHalf} onPress={refreshAll} activeOpacity={0.9}>
+              <Ionicons name="refresh" size={16} color={COLORS.softWhite} />
+              <Text style={styles.secondaryBtnText}>Refresh</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.primaryBtnHalf} onPress={goToHistory} activeOpacity={0.9}>
+              <Ionicons name="time-outline" size={16} color={COLORS.white} />
+              <Text style={styles.primaryBtnHalfText}>History</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.black },
-  container: { flex: 1, padding: 16, alignItems: "center" },
-  containerScroll: { padding: 16, alignItems: "center" },
-
-  title: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: COLORS.yellow,
-    marginTop: 8,
+  safe: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
   },
 
-  subTitle: {
-    marginTop: 6,
-    marginBottom: 14,
+  loadingWrap: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    color: COLORS.muted,
+    marginTop: 14,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  centerWrap: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  errorCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 24,
+    padding: 22,
+    alignItems: "center",
+  },
+
+  containerScroll: {
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 34,
+  },
+  headerWrap: {
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  pageTitle: {
+    fontSize: 30,
+    fontWeight: "900",
+    color: COLORS.white,
+    marginTop: 8,
+    letterSpacing: 0.2,
+  },
+  pageSubTitle: {
+    marginTop: 8,
     fontSize: 13,
     color: COLORS.muted,
     textAlign: "center",
+    lineHeight: 19,
+    maxWidth: 320,
   },
 
-  card: {
+  membershipCard: {
     width: "100%",
     backgroundColor: COLORS.card,
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 30,
+    paddingTop: 20,
+    paddingBottom: 20,
+    paddingHorizontal: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  cardGlowOne: {
+    position: "absolute",
+    top: -30,
+    right: -20,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: "rgba(59,130,246,0.10)",
+  },
+  cardGlowTwo: {
+    position: "absolute",
+    bottom: -40,
+    left: -20,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(59,130,246,0.08)",
+  },
+
+  topBadgeRow: {
     alignItems: "center",
+    marginBottom: 18,
   },
-
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "900",
+  brandText: {
     color: COLORS.white,
+    fontSize: 24,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  activeBadge: {
+    marginTop: 12,
+    backgroundColor: "rgba(59,130,246,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(59,130,246,0.35)",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  activeBadgeText: {
+    color: COLORS.primarySoft,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.7,
   },
 
-  cardSub: {
-    marginTop: 6,
-    fontSize: 12,
-    color: COLORS.muted,
+  planBlock: {
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  membershipLabel: {
+    color: COLORS.white,
+    fontSize: 30,
+    fontWeight: "900",
     textAlign: "center",
   },
-
-  featureText: {
-    marginTop: 10,
+  tagline: {
     color: COLORS.muted,
+    marginTop: 8,
     textAlign: "center",
-    fontSize: 12,
+    fontSize: 14,
   },
 
+  barcodeOuter: {
+    width: "100%",
+    alignItems: "center",
+    marginTop: 2,
+    marginBottom: 14,
+  },
   barcodeFrame: {
     width: "100%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingVertical: 26,
-    alignItems: "center",
-    marginVertical: 20,
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
+    paddingVertical: 18,
+    paddingHorizontal: 12,
     overflow: "hidden",
-    position: "relative",
+    alignItems: "center",
   },
-
   barcodeImage: {
     width: "100%",
-    height: 170,
-    resizeMode: "contain",
+    height: 148,
   },
-
   shimmerOverlay: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: COLORS.yellow,
+    backgroundColor: COLORS.primary,
   },
-
-  codeText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: COLORS.white,
-    marginTop: 6,
-    textAlign: "center",
+  barcodeMissingBox: {
+    width: "100%",
+    backgroundColor: COLORS.bgDeep,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 24,
+    paddingVertical: 30,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  expiryText: {
-    marginTop: 6,
-    fontSize: 12,
+  barcodeMissingText: {
     color: COLORS.muted,
+    fontSize: 14,
+    fontWeight: "600",
     textAlign: "center",
+    marginTop: 12,
+  },
+
+  codeBlock: {
+    alignItems: "center",
+    marginTop: 4,
+  },
+  memberCodeLabel: {
+    color: COLORS.muted2,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  memberCodeValue: {
+    color: COLORS.white,
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: 2,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  expiryText: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 10,
+    textAlign: "center",
+  },
+
+  actionRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 22,
+    width: "100%",
   },
 
   primaryBtn: {
-    width: "100%",
-    backgroundColor: COLORS.yellow,
-    paddingVertical: 14,
-    borderRadius: 30,
-    alignItems: "center",
     marginTop: 14,
-  },
-
-  primaryBtnText: {
-    color: "#000",
-    fontWeight: "900",
-  },
-
-  outlineBtn: {
-    width: "100%",
-    borderWidth: 1.5,
-    borderColor: COLORS.yellow,
-    paddingVertical: 14,
-    borderRadius: 30,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    minWidth: 150,
     alignItems: "center",
-    marginTop: 12,
-    backgroundColor: COLORS.card2,
+  },
+  primaryBtnText: {
+    color: COLORS.white,
+    fontWeight: "800",
+    fontSize: 14,
   },
 
-  outlineBtnText: {
-    color: COLORS.yellow,
+  primaryBtnHalf: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  primaryBtnHalfText: {
+    color: COLORS.white,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+
+  secondaryWideBtn: {
+    width: "100%",
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    paddingVertical: 13,
+    borderRadius: 16,
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  secondaryWideBtnText: {
+    color: COLORS.softWhite,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+
+  secondaryBtnHalf: {
+    flex: 1,
+    backgroundColor: COLORS.bgDeep,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  secondaryBtnText: {
+    color: COLORS.softWhite,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+
+  planCard: {
+    width: "100%",
+    backgroundColor: COLORS.cardSoft,
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginTop: 12,
+  },
+  planTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  planIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "rgba(59,130,246,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  planTextWrap: {
+    flex: 1,
+  },
+  planTitle: {
+    fontSize: 18,
     fontWeight: "900",
+    color: COLORS.white,
+  },
+  planPrice: {
+    marginTop: 6,
+    fontSize: 14,
+    color: COLORS.primarySoft,
+    fontWeight: "800",
+  },
+  planSub: {
+    marginTop: 8,
+    fontSize: 13,
+    color: COLORS.muted,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  featureText: {
+    marginTop: 14,
+    color: COLORS.muted,
+    lineHeight: 19,
+    fontSize: 13,
   },
 
   helperText: {
     marginTop: 16,
-    color: COLORS.muted,
+    color: COLORS.muted2,
     textAlign: "center",
+    lineHeight: 18,
     fontSize: 12,
   },
 
   flashOverlay: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+    top: 10,
+    left: 16,
+    right: 16,
     zIndex: 999,
-    paddingVertical: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
     alignItems: "center",
-    justifyContent: "center",
   },
-
-  flashSuccess: { backgroundColor: "rgba(34,197,94,0.92)" },
-  flashError: { backgroundColor: "rgba(239,68,68,0.92)" },
-
+  flashSuccess: {
+    backgroundColor: "rgba(34,197,94,0.95)",
+  },
+  flashError: {
+    backgroundColor: "rgba(239,68,68,0.95)",
+  },
   flashText: {
-    color: "#fff",
-    fontWeight: "900",
+    color: COLORS.white,
+    fontWeight: "800",
   },
 });

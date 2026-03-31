@@ -14,7 +14,7 @@ import ResetPasswordScreen from "./screens/ResetPasswordScreen";
 import VerifyResetOtpScreen from "./screens/VerifyResetOtpScreen";
 import SetNewPasswordScreen from "./screens/SetNewPasswordScreen";
 import ResetSuccessScreen from "./screens/ResetSuccessScreen";
-
+import SettingsScreen from "./screens/SettingsScreen";
 // Main app
 import HomeScreen from "./screens/HomeScreen";
 import CheckinScreen from "./screens/CheckinScreen";
@@ -124,6 +124,7 @@ export default function App() {
           <Stack.Screen name="CheckinHistory" component={CheckinHistoryScreen} />
           <Stack.Screen name="Branches" component={BranchesScreen} />
           <Stack.Screen name="Account" component={AccountScreen} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="EditProfile" component={EditProfileScreen} />
           <Stack.Screen name="ChangeEmail" component={ChangeEmailScreen} />
           <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />

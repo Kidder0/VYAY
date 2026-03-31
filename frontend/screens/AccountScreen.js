@@ -1,243 +1,534 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Animated,
   ScrollView,
   ActivityIndicator,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiFetch } from "../api";
+import * as Haptics from "expo-haptics";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const BLACK_SOFT = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const TEXT_MUTED = "rgba(255,255,255,0.65)";
-const DANGER = "#DC2626";
+const COLORS = {
+  bg: "#000000",
+  bgDeep: "#050505",
+  card: "#121212",
+  cardSoft: "#171717",
+  border: "#232323",
+  borderSoft: "#2E2E2E",
+  primary: "#3B82F6",
+  primarySoft: "#93C5FD",
+  white: "#FFFFFF",
+  softWhite: "#E5E7EB",
+  muted: "#A1A1AA",
+  muted2: "#71717A",
+  success: "#22C55E",
+  danger: "#EF4444",
+};
 
-function getInitials(name) {
-  const clean = (name || "").trim();
-  if (!clean) return "GP";
-  const parts = clean.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+function normalizeMembership(value, hasMembership) {
+  const raw = String(value || "").trim().toLowerCase();
+
+  if (!hasMembership) return "JOIN";
+  if (raw === "basic") return "BUILD";
+  if (raw === "pro") return "DOMINATE";
+  if (raw.includes("build")) return "BUILD";
+  if (raw.includes("dominate")) return "DOMINATE";
+
+  return "MEMBER";
 }
 
-function MenuRow({ icon, label, onPress, right, danger }) {
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.row}>
-      <View style={styles.rowLeft}>
-        <View style={[styles.iconWrap, danger && { backgroundColor: "#2A0F0F" }]}>
-          <Ionicons name={icon} size={18} color={danger ? DANGER : YELLOW} />
-        </View>
-        <Text style={[styles.rowLabel, danger && { color: DANGER }]}>{label}</Text>
-      </View>
+function getInitials(name) {
+  const cleaned = String(name || "").trim();
+  if (!cleaned) return "V";
 
-      <View style={styles.rowRight}>
-        {right ? right : <Ionicons name="chevron-forward" size={18} color={TEXT_MUTED} />}
-      </View>
-    </TouchableOpacity>
+  const parts = cleaned.split(" ").filter(Boolean);
+  if (parts.length === 1) return parts[0][0]?.toUpperCase() || "V";
+
+  return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+}
+
+function MenuItem({ icon, label, subLabel, onPress, danger = false }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.timing(scale, {
+      toValue: 0.98,
+      duration: 90,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.timing(scale, {
+      toValue: 1,
+      duration: 90,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePress = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress?.();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity
+        style={styles.item}
+        activeOpacity={1}
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+      >
+        <View style={styles.itemLeft}>
+          <View
+            style={[
+              styles.itemIconWrap,
+              danger && styles.itemIconWrapDanger,
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={icon}
+              size={20}
+              color={danger ? COLORS.danger : COLORS.primary}
+            />
+          </View>
+
+          <View style={styles.itemTextWrap}>
+            <Text style={[styles.itemText, danger && styles.itemTextDanger]}>
+              {label}
+            </Text>
+            {subLabel ? <Text style={styles.itemSubText}>{subLabel}</Text> : null}
+          </View>
+        </View>
+
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color={danger ? COLORS.danger : COLORS.muted2}
+        />
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
 export default function AccountScreen({ navigation }) {
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [profileName, setProfileName] = useState("GymPro Member");
+  const [name, setName] = useState("VYAY Member");
+  const [email, setEmail] = useState("");
+  const [membership, setMembership] = useState("JOIN");
+  const [hasMembership, setHasMembership] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const initials = useMemo(() => getInitials(profileName), [profileName]);
+  const fade = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(18)).current;
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener("focus", async () => {
-      try {
-        setLoadingProfile(true);
-        const res = await apiFetch("/api/auth/profile");
-        setProfileName(res.profile?.name || "GymPro Member");
-      } catch (e) {
-        console.log(e.message);
-      } finally {
-        setLoadingProfile(false);
-      }
-    });
+    Animated.parallel([
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
-    return unsubscribe;
-  }, [navigation]);
+    loadProfile();
+  }, []);
 
-  const onLogout = async () => {
-    await AsyncStorage.removeItem("token");
-    navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+  const loadProfile = async () => {
+    try {
+      setLoading(true);
+
+      const [profileRes, membershipRes] = await Promise.all([
+        apiFetch("/api/auth/profile"),
+        apiFetch("/api/checkin/code"),
+      ]);
+
+      const profile = profileRes?.profile || {};
+      const has =
+        !membershipRes?.show_plans && !!membershipRes?.membership_code;
+
+      setName(profile?.name || "VYAY Member");
+      setEmail(profile?.email || "");
+      setHasMembership(has);
+      setMembership(
+        normalizeMembership(
+          membershipRes?.membership_plan_name || membershipRes?.membership_type,
+          has
+        )
+      );
+    } catch (err) {
+      console.log("Account load error:", err?.message || err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const onDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "This will delete your account and log you out. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await apiFetch("/api/auth/delete-account", { method: "DELETE" });
-              await AsyncStorage.removeItem("token");
-              navigation.reset({ index: 0, routes: [{ name: "Login" }] });
-            } catch (e) {
-              Alert.alert("Error", e?.message || "Failed to delete account");
-            }
-          },
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          await AsyncStorage.removeItem("token");
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Login" }],
+          });
         },
-      ]
-    );
+      },
+    ]);
+  };
+
+  const handleStore = () => {
+    Alert.alert("VYAY Store", "Store screen coming next.");
+  };
+
+  const handleHelp = () => {
+    Alert.alert("Help", "Help screen coming next.");
+  };
+
+  const handleMembershipTap = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (hasMembership) {
+      navigation.navigate("Checkin");
+    } else {
+      navigation.navigate("Checkin");
+    }
   };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color={YELLOW} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Account</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.container}
+        style={{
+          opacity: fade,
+          transform: [{ translateY }],
+        }}
+      >
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="arrow-back" size={22} color={COLORS.white} />
+          </TouchableOpacity>
 
-      <View style={styles.topArea}>
-        <TouchableOpacity
-          style={styles.profileCard}
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate("EditProfile")}
-        >
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          <Text style={styles.headerTitle}>Account</Text>
 
-          <View style={{ flex: 1 }}>
-            <Text style={styles.nameText}>{loadingProfile ? "Loading..." : profileName}</Text>
-            <Text style={styles.subText}>Manage your account & preferences</Text>
-          </View>
-
-          {loadingProfile ? (
-            <ActivityIndicator size="small" color={YELLOW} />
-          ) : (
-            <Ionicons name="sparkles-outline" size={20} color={YELLOW} />
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }}>
-        <View style={styles.sectionCard}>
-          <MenuRow
-            icon="person-outline"
-            label="My Information"
-            onPress={() => navigation.navigate("EditProfile")}
-          />
-          <View style={styles.divider} />
-          <MenuRow
-            icon="mail-outline"
-            label="Change Email"
-            onPress={() => navigation.navigate("ChangeEmail")}
-          />
-          <View style={styles.divider} />
-          <MenuRow
-            icon="key-outline"
-            label="Change Password"
-            onPress={() => navigation.navigate("ChangePassword")}
-          />
-          <View style={styles.divider} />
-          <MenuRow
-            icon="location-outline"
-            label="Clubs"
-            onPress={() => navigation.navigate("Branches")}
-          />
+          <View style={styles.headerSpacer} />
         </View>
 
-        <View style={styles.sectionCard}>
-          <MenuRow icon="trash-outline" label="Delete Account" danger onPress={onDeleteAccount} />
-          <View style={styles.divider} />
-          <MenuRow icon="log-out-outline" label="Log Out" danger onPress={onLogout} />
-        </View>
-      </ScrollView>
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Loading account...</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.profileBlock}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{getInitials(name)}</Text>
+              </View>
+
+              <Text style={styles.name}>{name}</Text>
+              {email ? <Text style={styles.email}>{email}</Text> : null}
+
+              <TouchableOpacity
+                style={[
+                  styles.membershipBadge,
+                  hasMembership
+                    ? styles.membershipBadgeActive
+                    : styles.membershipBadgeInactive,
+                ]}
+                onPress={handleMembershipTap}
+                activeOpacity={0.9}
+              >
+                <View
+                  style={[
+                    styles.membershipDot,
+                    {
+                      backgroundColor: hasMembership
+                        ? COLORS.success
+                        : COLORS.primary,
+                    },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.membershipBadgeText,
+                    hasMembership
+                      ? styles.membershipBadgeTextActive
+                      : styles.membershipBadgeTextInactive,
+                  ]}
+                >
+                  {membership}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.section}>
+              <MenuItem
+                icon="dumbbell"
+                label="My Club"
+                subLabel="View your available club access"
+                onPress={() => navigation.navigate("Branches")}
+              />
+              <MenuItem
+                icon="history"
+                label="Check-in History"
+                subLabel="See your recent visits"
+                onPress={() => navigation.navigate("CheckinHistory")}
+              />
+              <MenuItem
+                icon="shopping-outline"
+                label="VYAY Store"
+                subLabel="Browse products and essentials"
+                onPress={handleStore}
+              />
+            </View>
+
+            <View style={styles.section}>
+              <MenuItem
+                icon="email-outline"
+                label="Change Email"
+                subLabel="Update your email address"
+                onPress={() => navigation.navigate("ChangeEmail")}
+              />
+              <MenuItem
+                icon="cog-outline"
+                label="Settings"
+                subLabel="Language, country and app options"
+                onPress={() => navigation.navigate("Settings")}
+              />
+            </View>
+
+            <View style={styles.section}>
+              <MenuItem
+                icon="help-circle-outline"
+                label="Help"
+                subLabel="Support and assistance"
+                onPress={handleHelp}
+              />
+              <MenuItem
+                icon="logout"
+                label="Logout"
+                subLabel="Sign out from your account"
+                onPress={handleLogout}
+                danger
+              />
+            </View>
+          </>
+        )}
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: BLACK },
+  safe: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
 
-  header: {
-    height: 56,
-    backgroundColor: BLACK_SOFT,
+  container: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 40,
+  },
+
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
+    marginBottom: 26,
   },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { color: YELLOW, fontWeight: "900", fontSize: 16 },
 
-  topArea: { paddingHorizontal: 16, paddingTop: 14 },
-
-  profileCard: {
-    backgroundColor: BLACK_SOFT,
-    borderRadius: 18,
-    padding: 16,
+  backBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
-    borderColor: BORDER,
-    flexDirection: "row",
+    borderColor: COLORS.border,
     alignItems: "center",
-    gap: 14,
+    justifyContent: "center",
+  },
+
+  headerTitle: {
+    color: COLORS.white,
+    fontSize: 22,
+    fontWeight: "800",
+  },
+
+  headerSpacer: {
+    width: 42,
+  },
+
+  loadingWrap: {
+    paddingTop: 100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  loadingText: {
+    marginTop: 14,
+    color: COLORS.muted,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  profileBlock: {
+    alignItems: "center",
+    marginBottom: 28,
   },
 
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#1F1F1F",
+    width: 94,
+    height: 94,
+    borderRadius: 47,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: COLORS.border,
     alignItems: "center",
     justifyContent: "center",
-  },
-  avatarText: { color: YELLOW, fontWeight: "900", fontSize: 16 },
-
-  nameText: { color: "#fff", fontSize: 15, fontWeight: "900" },
-  subText: { color: TEXT_MUTED, fontSize: 12, marginTop: 4 },
-
-  sheet: { flex: 1, paddingHorizontal: 16 },
-
-  sectionCard: {
-    backgroundColor: BLACK_SOFT,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: BORDER,
-    marginTop: 14,
-    overflow: "hidden",
+    marginBottom: 16,
   },
 
-  row: {
+  avatarText: {
+    color: COLORS.primarySoft,
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+
+  name: {
+    color: COLORS.white,
+    fontSize: 24,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+
+  email: {
+    color: COLORS.muted,
+    fontSize: 14,
+    marginTop: 6,
+    textAlign: "center",
+  },
+
+  membershipBadge: {
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 999,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+
+  membershipBadgeActive: {
+    backgroundColor: "rgba(59,130,246,0.12)",
+    borderColor: "rgba(59,130,246,0.30)",
+  },
+
+  membershipBadgeInactive: {
+    backgroundColor: COLORS.card,
+    borderColor: COLORS.borderSoft,
+  },
+
+  membershipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    marginRight: 8,
+  },
+
+  membershipBadgeText: {
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+
+  membershipBadgeTextActive: {
+    color: COLORS.primarySoft,
+  },
+
+  membershipBadgeTextInactive: {
+    color: COLORS.white,
+  },
+
+  section: {
+    backgroundColor: COLORS.card,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+
+  item: {
+    minHeight: 74,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  rowLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
 
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#1A1A1A",
+  itemLeft: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    flex: 1,
+    paddingRight: 10,
   },
 
-  rowLabel: { color: "#fff", fontSize: 14, fontWeight: "800" },
-  rowRight: { alignItems: "center", justifyContent: "center" },
+  itemIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "rgba(59,130,246,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
 
-  divider: { height: 1, backgroundColor: BORDER, marginLeft: 64 },
+  itemIconWrapDanger: {
+    backgroundColor: "rgba(239,68,68,0.12)",
+  },
+
+  itemTextWrap: {
+    flex: 1,
+  },
+
+  itemText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  itemTextDanger: {
+    color: COLORS.danger,
+  },
+
+  itemSubText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 17,
+  },
 });
