@@ -15,14 +15,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const BLACK_CARD = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const TEXT_MUTED = "rgba(255,255,255,0.65)";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const BLACK_CARD = COLORS.card;
+const BORDER = COLORS.border;
+const TEXT_MUTED = COLORS.muted;
 
 export default function ChangeEmailScreen({ navigation }) {
+  const { t } = useI18n();
   const [step, setStep] = useState(1);
   const [newEmail, setNewEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -32,7 +35,7 @@ export default function ChangeEmailScreen({ navigation }) {
     const email = newEmail.trim().toLowerCase();
 
     if (!email) {
-      return Alert.alert("Missing", "Please enter a new email");
+      return Alert.alert(t("missing_title"), t("enter_new_email"));
     }
 
     try {
@@ -44,12 +47,12 @@ export default function ChangeEmailScreen({ navigation }) {
       });
 
       Alert.alert(
-        "OTP Sent",
-        res.message || "Profile updated. Please verify your new email."
+        t("otp_sent_title"),
+        res.message || t("change_email_enter_sub")
       );
       setStep(2);
     } catch (e) {
-      Alert.alert("Failed", e.message || "Unable to update email");
+      Alert.alert(t("failed_title"), e.message || t("unable_update_email"));
     } finally {
       setLoading(false);
     }
@@ -60,11 +63,11 @@ export default function ChangeEmailScreen({ navigation }) {
     const code = otp.trim();
 
     if (!email) {
-      return Alert.alert("Missing", "Email is missing");
+      return Alert.alert(t("missing_title"), t("email_missing"));
     }
 
     if (!code) {
-      return Alert.alert("Missing", "Please enter OTP");
+      return Alert.alert(t("missing_title"), t("enter_otp"));
     }
 
     try {
@@ -78,10 +81,10 @@ export default function ChangeEmailScreen({ navigation }) {
         }),
       });
 
-      Alert.alert("Success", res.message || "Email verified and updated");
+      Alert.alert(t("common_success"), res.message || t("email_verified_updated"));
       navigation.goBack();
     } catch (e) {
-      Alert.alert("Verification Failed", e.message || "Invalid OTP");
+      Alert.alert(t("verification_failed_title"), e.message || t("invalid_otp"));
     } finally {
       setLoading(false);
     }
@@ -93,7 +96,7 @@ export default function ChangeEmailScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={YELLOW} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Change Email</Text>
+        <Text style={styles.headerTitle}>{t("change_email_title")}</Text>
         <View style={styles.iconBtn} />
       </View>
 
@@ -110,18 +113,15 @@ export default function ChangeEmailScreen({ navigation }) {
             <View style={styles.card}>
               {step === 1 ? (
                 <>
-                  <Text style={styles.title}>Enter New Email</Text>
-                  <Text style={styles.sub}>
-                    We’ll send an OTP to your new email. Your email changes only
-                    after verification.
-                  </Text>
+                  <Text style={styles.title}>{t("change_email_enter_title")}</Text>
+                  <Text style={styles.sub}>{t("change_email_enter_sub")}</Text>
 
-                  <Text style={styles.label}>New Email</Text>
+                  <Text style={styles.label}>{t("change_email_new")}</Text>
                   <TextInput
                     value={newEmail}
                     onChangeText={setNewEmail}
                     style={styles.input}
-                    placeholder="Enter new email"
+                    placeholder={t("change_email_placeholder")}
                     placeholderTextColor={TEXT_MUTED}
                     autoCapitalize="none"
                     keyboardType="email-address"
@@ -134,23 +134,25 @@ export default function ChangeEmailScreen({ navigation }) {
                     activeOpacity={0.9}
                   >
                     <Text style={styles.primaryText}>
-                      {loading ? "Sending OTP..." : "Send OTP"}
+                      {loading ? t("change_email_sending") : t("change_email_send")}
                     </Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
-                  <Text style={styles.title}>Verify OTP</Text>
+                  <Text style={styles.title}>{t("change_email_verify_title")}</Text>
                   <Text style={styles.sub}>
-                    Enter the OTP sent to {newEmail.trim().toLowerCase()}.
+                    {t("change_email_verify_sub", {
+                      email: newEmail.trim().toLowerCase(),
+                    })}
                   </Text>
 
-                  <Text style={styles.label}>OTP</Text>
+                  <Text style={styles.label}>{t("change_email_otp_label")}</Text>
                   <TextInput
                     value={otp}
                     onChangeText={setOtp}
                     style={styles.input}
-                    placeholder="Enter OTP"
+                    placeholder={t("change_email_placeholder_otp")}
                     placeholderTextColor={TEXT_MUTED}
                     keyboardType="number-pad"
                     maxLength={6}
@@ -163,7 +165,7 @@ export default function ChangeEmailScreen({ navigation }) {
                     activeOpacity={0.9}
                   >
                     <Text style={styles.primaryText}>
-                      {loading ? "Verifying..." : "Verify OTP"}
+                      {loading ? t("change_email_verifying") : t("change_email_verify")}
                     </Text>
                   </TouchableOpacity>
 
@@ -173,7 +175,7 @@ export default function ChangeEmailScreen({ navigation }) {
                     disabled={loading}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.secondaryText}>Change Email Again</Text>
+                    <Text style={styles.secondaryText}>{t("change_email_back_again")}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -227,7 +229,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 20,
     fontWeight: "900",
     marginBottom: 8,
@@ -240,7 +242,7 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 13,
     fontWeight: "800",
     marginBottom: 8,
@@ -248,13 +250,13 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 14,
     marginBottom: 14,
   },
@@ -270,7 +272,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   primaryText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontWeight: "900",
     fontSize: 14,
   },

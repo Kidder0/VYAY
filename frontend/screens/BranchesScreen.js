@@ -12,12 +12,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const BLACK_SOFT = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const TEXT_MUTED = "rgba(255,255,255,0.65)";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const BLACK_SOFT = COLORS.card;
+const BORDER = COLORS.border;
+const TEXT_MUTED = COLORS.muted;
 
 function distanceMiles(lat1, lon1, lat2, lon2) {
   if (
@@ -45,6 +47,7 @@ function distanceMiles(lat1, lon1, lat2, lon2) {
 }
 
 export default function BranchesScreen({ navigation }) {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [userLoc, setUserLoc] = useState(null);
 
@@ -99,7 +102,8 @@ export default function BranchesScreen({ navigation }) {
   }, [branches, search, userLoc]);
 
   const renderItem = ({ item }) => {
-    const distText = item.miles != null ? `${Math.round(item.miles)} mi` : "";
+    const distText =
+      item.miles != null ? t("branches_distance_miles", { miles: Math.round(item.miles) }) : "";
 
     return (
       <View style={styles.card}>
@@ -109,19 +113,20 @@ export default function BranchesScreen({ navigation }) {
         </View>
 
         <Text style={styles.address}>
-          {[item.address, item.city, item.state].filter(Boolean).join(", ") || "Address unavailable"}
+          {[item.address, item.city, item.state].filter(Boolean).join(", ") ||
+            t("branches_address_unavailable")}
         </Text>
 
         <View style={styles.actions}>
           <TouchableOpacity style={styles.linkBtn}>
-            <Text style={styles.linkText}>Club Details</Text>
+            <Text style={styles.linkText}>{t("branches_details")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={() => navigation.navigate("Checkin")}
           >
-            <Text style={styles.primaryText}>Review Plans</Text>
+            <Text style={styles.primaryText}>{t("branches_review_plans")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -134,7 +139,7 @@ export default function BranchesScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.back}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.header}>Find a Club</Text>
+        <Text style={styles.header}>{t("branches_title")}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -142,7 +147,7 @@ export default function BranchesScreen({ navigation }) {
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Search clubs..."
+          placeholder={t("branches_search")}
           placeholderTextColor={TEXT_MUTED}
           style={styles.search}
         />
@@ -161,7 +166,7 @@ export default function BranchesScreen({ navigation }) {
           contentContainerStyle={{ paddingBottom: 40 }}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>No clubs found.</Text>
+              <Text style={styles.emptyText}>{t("branches_no_results")}</Text>
             </View>
           }
         />
@@ -197,7 +202,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: "#fff",
+    color: COLORS.white,
   },
 
   card: {
@@ -216,7 +221,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  title: { flex: 1, fontSize: 16, fontWeight: "900", color: "#fff" },
+  title: { flex: 1, fontSize: 16, fontWeight: "900", color: COLORS.white },
   distance: { fontWeight: "800", color: YELLOW },
 
   address: { marginTop: 6, color: TEXT_MUTED },
@@ -238,7 +243,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
   },
-  primaryText: { color: "#000", fontWeight: "900" },
+  primaryText: { color: COLORS.darkText, fontWeight: "900" },
 
   emptyWrap: {
     paddingHorizontal: 20,

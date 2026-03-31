@@ -15,14 +15,17 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const CARD = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const MUTED = "rgba(255,255,255,0.65)";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const CARD = COLORS.card;
+const BORDER = COLORS.border;
+const MUTED = COLORS.muted;
 
 export default function VerifyEmailScreen({ route, navigation }) {
+  const { t } = useI18n();
   const { email } = route.params || {};
 
   const [otp, setOtp] = useState("");
@@ -41,11 +44,11 @@ export default function VerifyEmailScreen({ route, navigation }) {
 
   const verifyOtp = async () => {
     if (!email) {
-      return Alert.alert("Error", "Email is missing");
+      return Alert.alert(t("common_error"), t("email_missing"));
     }
 
     if (!otp.trim()) {
-      return Alert.alert("Required", "Please enter OTP");
+      return Alert.alert(t("required_title"), t("enter_otp"));
     }
 
     try {
@@ -60,13 +63,13 @@ export default function VerifyEmailScreen({ route, navigation }) {
         }),
       });
 
-      Alert.alert("Success", "Email verified successfully!");
+      Alert.alert(t("common_success"), t("email_verified_success"));
       navigation.reset({
         index: 0,
         routes: [{ name: "Login", params: { prefillEmail: email } }],
       });
     } catch (err) {
-      Alert.alert("Error", err.message || "Invalid OTP");
+      Alert.alert(t("common_error"), err.message || t("invalid_otp"));
     } finally {
       setVerifying(false);
     }
@@ -74,7 +77,7 @@ export default function VerifyEmailScreen({ route, navigation }) {
 
   const resendOtp = async () => {
     if (!email) {
-      return Alert.alert("Error", "Email is missing");
+      return Alert.alert(t("common_error"), t("email_missing"));
     }
 
     try {
@@ -86,11 +89,11 @@ export default function VerifyEmailScreen({ route, navigation }) {
         body: JSON.stringify({ email }),
       });
 
-      Alert.alert("Success", "OTP resent successfully!");
+      Alert.alert(t("common_success"), t("otp_resent_success"));
       setTimer(60);
       setCanResend(false);
     } catch (err) {
-      Alert.alert("Error", err.message || "Failed to resend OTP");
+      Alert.alert(t("common_error"), err.message || t("failed_resend_otp"));
     } finally {
       setResending(false);
     }
@@ -109,12 +112,12 @@ export default function VerifyEmailScreen({ route, navigation }) {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.card}>
-              <Text style={styles.title}>Verify Email</Text>
-              <Text style={styles.sub}>OTP sent to:</Text>
-              <Text style={styles.email}>{email || "No email found"}</Text>
+              <Text style={styles.title}>{t("verify_email_title")}</Text>
+              <Text style={styles.sub}>{t("verify_email_otp_sent_to")}</Text>
+              <Text style={styles.email}>{email || t("verify_email_no_email")}</Text>
 
               <TextInput
-                placeholder="Enter OTP"
+                placeholder={t("verify_email_otp")}
                 placeholderTextColor={MUTED}
                 style={styles.input}
                 value={otp}
@@ -131,9 +134,9 @@ export default function VerifyEmailScreen({ route, navigation }) {
                 activeOpacity={0.9}
               >
                 {verifying ? (
-                  <ActivityIndicator color="#000" />
+                  <ActivityIndicator color={COLORS.darkText} />
                 ) : (
-                  <Text style={styles.primaryText}>Verify OTP</Text>
+                  <Text style={styles.primaryText}>{t("verify_email_verify")}</Text>
                 )}
               </TouchableOpacity>
 
@@ -148,11 +151,11 @@ export default function VerifyEmailScreen({ route, navigation }) {
                     {resending ? (
                       <ActivityIndicator color={YELLOW} />
                     ) : (
-                      <Text style={styles.secondaryText}>Resend OTP</Text>
+                      <Text style={styles.secondaryText}>{t("verify_email_resend")}</Text>
                     )}
                   </TouchableOpacity>
                 ) : (
-                  <Text style={styles.timerText}>Resend OTP in {timer}s</Text>
+                  <Text style={styles.timerText}>{t("verify_email_timer", { seconds: timer })}</Text>
                 )}
               </View>
 
@@ -161,7 +164,7 @@ export default function VerifyEmailScreen({ route, navigation }) {
                 onPress={() => navigation.goBack()}
                 activeOpacity={0.8}
               >
-                <Text style={styles.linkText}>Back</Text>
+                <Text style={styles.linkText}>{t("common_back")}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -203,19 +206,19 @@ const styles = StyleSheet.create({
   },
 
   email: {
-    color: "#fff",
+    color: COLORS.white,
     marginBottom: 18,
     fontWeight: "700",
   },
 
   input: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: BORDER,
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 14,
-    color: "#fff",
+    color: COLORS.white,
     marginBottom: 16,
     textAlign: "center",
     fontSize: 18,
@@ -230,7 +233,7 @@ const styles = StyleSheet.create({
   },
 
   primaryText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontSize: 16,
     fontWeight: "900",
   },

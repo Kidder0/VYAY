@@ -15,14 +15,17 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const CARD = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const MUTED = "rgba(255,255,255,0.65)";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const CARD = COLORS.card;
+const BORDER = COLORS.border;
+const MUTED = COLORS.muted;
 
 export default function ResetPasswordScreen({ navigation }) {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -30,7 +33,7 @@ export default function ResetPasswordScreen({ navigation }) {
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanEmail) {
-      return Alert.alert("Required", "Enter email");
+      return Alert.alert(t("required_title"), t("enter_email"));
     }
 
     try {
@@ -42,12 +45,12 @@ export default function ResetPasswordScreen({ navigation }) {
         body: JSON.stringify({ email: cleanEmail }),
       });
 
-      Alert.alert("OTP Sent", res.message || "Check your email.");
+      Alert.alert(t("otp_sent_title"), res.message || t("otp_sent_check_email"));
       navigation.navigate("VerifyResetOtp", {
         email: cleanEmail,
       });
     } catch (e) {
-      Alert.alert("Error", e.message || "Failed to send OTP");
+      Alert.alert(t("common_error"), e.message || t("failed_send_otp"));
     } finally {
       setLoading(false);
     }
@@ -66,11 +69,11 @@ export default function ResetPasswordScreen({ navigation }) {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.card}>
-              <Text style={styles.title}>Reset Password</Text>
-              <Text style={styles.sub}>Enter your email to receive OTP</Text>
+              <Text style={styles.title}>{t("reset_password_title")}</Text>
+              <Text style={styles.sub}>{t("reset_password_sub")}</Text>
 
               <TextInput
-                placeholder="Email"
+                placeholder={t("reset_password_email_placeholder")}
                 placeholderTextColor={MUTED}
                 style={styles.input}
                 value={email}
@@ -88,9 +91,9 @@ export default function ResetPasswordScreen({ navigation }) {
                 activeOpacity={0.9}
               >
                 {loading ? (
-                  <ActivityIndicator color="#000" />
+                  <ActivityIndicator color={COLORS.darkText} />
                 ) : (
-                  <Text style={styles.primaryText}>Send OTP</Text>
+                  <Text style={styles.primaryText}>{t("reset_password_send")}</Text>
                 )}
               </TouchableOpacity>
 
@@ -99,7 +102,7 @@ export default function ResetPasswordScreen({ navigation }) {
                 onPress={() => navigation.goBack()}
                 activeOpacity={0.8}
               >
-                <Text style={styles.linkText}>Back to Login</Text>
+                <Text style={styles.linkText}>{t("reset_password_back")}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -142,14 +145,14 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: BORDER,
     paddingVertical: 14,
     paddingHorizontal: 14,
     marginBottom: 14,
     borderRadius: 14,
-    color: "#fff",
+    color: COLORS.white,
   },
 
   primaryBtn: {
@@ -165,7 +168,7 @@ const styles = StyleSheet.create({
   },
 
   primaryText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontSize: 16,
     fontWeight: "900",
   },

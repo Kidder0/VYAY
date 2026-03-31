@@ -15,21 +15,24 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const BLACK_CARD = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const TEXT_MUTED = "rgba(255,255,255,0.65)";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const BLACK_CARD = COLORS.card;
+const BORDER = COLORS.border;
+const TEXT_MUTED = COLORS.muted;
 
 export default function ChangePasswordScreen({ navigation }) {
+  const { t } = useI18n();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const onUpdate = async () => {
     if (!currentPassword.trim() || !newPassword.trim()) {
-      return Alert.alert("Missing", "Please fill all fields");
+      return Alert.alert(t("missing_title"), t("fill_all_fields"));
     }
 
     try {
@@ -43,10 +46,10 @@ export default function ChangePasswordScreen({ navigation }) {
         }),
       });
 
-      Alert.alert("Success", res.message || "Password updated");
+      Alert.alert(t("common_success"), res.message || t("password_updated"));
       navigation.goBack();
     } catch (e) {
-      Alert.alert("Failed", e.message || "Unable to update password");
+      Alert.alert(t("failed_title"), e.message || t("unable_update_password"));
     } finally {
       setLoading(false);
     }
@@ -58,7 +61,7 @@ export default function ChangePasswordScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={YELLOW} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Change Password</Text>
+        <Text style={styles.headerTitle}>{t("change_password_title")}</Text>
         <View style={styles.iconBtn} />
       </View>
 
@@ -73,30 +76,27 @@ export default function ChangePasswordScreen({ navigation }) {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.card}>
-              <Text style={styles.label}>Current Password</Text>
+              <Text style={styles.label}>{t("change_password_current")}</Text>
               <TextInput
                 value={currentPassword}
                 onChangeText={setCurrentPassword}
                 style={styles.input}
                 secureTextEntry
-                placeholder="Enter current password"
+                placeholder={t("change_password_placeholder_current")}
                 placeholderTextColor={TEXT_MUTED}
               />
 
-              <Text style={styles.label}>New Password</Text>
+              <Text style={styles.label}>{t("change_password_new")}</Text>
               <TextInput
                 value={newPassword}
                 onChangeText={setNewPassword}
                 style={styles.input}
                 secureTextEntry
-                placeholder="Enter new password"
+                placeholder={t("change_password_placeholder_new")}
                 placeholderTextColor={TEXT_MUTED}
               />
 
-              <Text style={styles.note}>
-                New password must be at least 8 characters and include uppercase,
-                lowercase, number, and special character.
-              </Text>
+              <Text style={styles.note}>{t("set_password_note")}</Text>
 
               <TouchableOpacity
                 style={[styles.primaryBtn, loading && styles.disabledBtn]}
@@ -105,7 +105,7 @@ export default function ChangePasswordScreen({ navigation }) {
                 activeOpacity={0.9}
               >
                 <Text style={styles.primaryText}>
-                  {loading ? "Updating..." : "Update Password"}
+                  {loading ? t("change_password_updating") : t("change_password_update")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 13,
     fontWeight: "800",
     marginBottom: 8,
@@ -166,13 +166,13 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 14,
     marginBottom: 14,
   },
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   primaryText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontWeight: "900",
     fontSize: 14,
   },

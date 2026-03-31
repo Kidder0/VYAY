@@ -16,14 +16,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const BLACK_CARD = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const TEXT_MUTED = "rgba(255,255,255,0.65)";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const BLACK_CARD = COLORS.card;
+const BORDER = COLORS.border;
+const TEXT_MUTED = COLORS.muted;
 
 export default function EditProfileScreen({ navigation }) {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -44,7 +47,7 @@ export default function EditProfileScreen({ navigation }) {
       setEmail(p.email || "");
       setPhone(p.phone_number || "");
     } catch (e) {
-      Alert.alert("Error", e.message || "Failed to load profile");
+      Alert.alert(t("common_error"), e.message || t("failed_load_profile"));
     } finally {
       setLoading(false);
     }
@@ -52,11 +55,11 @@ export default function EditProfileScreen({ navigation }) {
 
   const onSave = async () => {
     if (!name.trim()) {
-      return Alert.alert("Missing", "Please enter your name");
+      return Alert.alert(t("missing_title"), t("enter_name"));
     }
 
     if (!phone.trim()) {
-      return Alert.alert("Missing", "Please enter your phone number");
+      return Alert.alert(t("missing_title"), t("enter_phone"));
     }
 
     try {
@@ -70,10 +73,10 @@ export default function EditProfileScreen({ navigation }) {
         }),
       });
 
-      Alert.alert("Success", res.message || "Profile updated");
+      Alert.alert(t("common_success"), res.message || t("profile_updated"));
       navigation.goBack();
     } catch (e) {
-      Alert.alert("Update failed", e.message || "Unable to update profile");
+      Alert.alert(t("failed_title"), e.message || t("unable_update_profile"));
     } finally {
       setSaving(false);
     }
@@ -86,7 +89,7 @@ export default function EditProfileScreen({ navigation }) {
           <Ionicons name="chevron-back" size={24} color={YELLOW} />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>My Information</Text>
+        <Text style={styles.headerTitle}>{t("account_title_compact")}</Text>
 
         <View style={styles.iconBtn} />
       </View>
@@ -107,16 +110,16 @@ export default function EditProfileScreen({ navigation }) {
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.card}>
-                <Text style={styles.label}>Name</Text>
+                <Text style={styles.label}>{t("edit_profile_name")}</Text>
                 <TextInput
                   value={name}
                   onChangeText={setName}
                   style={styles.input}
-                  placeholder="Enter your name"
+                  placeholder={t("edit_profile_placeholder_name")}
                   placeholderTextColor={TEXT_MUTED}
                 />
 
-                <Text style={styles.label}>Email</Text>
+                <Text style={styles.label}>{t("edit_profile_email")}</Text>
                 <TextInput
                   value={email}
                   editable={false}
@@ -130,16 +133,16 @@ export default function EditProfileScreen({ navigation }) {
                   activeOpacity={0.9}
                 >
                   <Ionicons name="mail-outline" size={18} color={YELLOW} />
-                  <Text style={styles.linkText}>Change Email</Text>
+                  <Text style={styles.linkText}>{t("edit_profile_change_email")}</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.label}>Phone</Text>
+                <Text style={styles.label}>{t("edit_profile_phone")}</Text>
                 <TextInput
                   value={phone}
                   onChangeText={setPhone}
                   style={styles.input}
                   keyboardType="phone-pad"
-                  placeholder="Enter phone number"
+                  placeholder={t("edit_profile_placeholder_phone")}
                   placeholderTextColor={TEXT_MUTED}
                 />
 
@@ -150,12 +153,12 @@ export default function EditProfileScreen({ navigation }) {
                   activeOpacity={0.9}
                 >
                   <Text style={styles.primaryText}>
-                    {saving ? "Saving..." : "Save Changes"}
+                    {saving ? t("saving") : t("edit_profile_save")}
                   </Text>
                 </TouchableOpacity>
 
                 <Text style={styles.note}>
-                  Email changes require OTP verification.
+                  {t("edit_profile_note")}
                 </Text>
               </View>
             </ScrollView>
@@ -213,18 +216,18 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 8,
     fontWeight: "800",
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 13,
   },
 
   input: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 14,
   },
 
@@ -264,7 +267,7 @@ const styles = StyleSheet.create({
   },
 
   primaryText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontWeight: "900",
     fontSize: 14,
   },

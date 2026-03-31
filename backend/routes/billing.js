@@ -4,11 +4,104 @@ const stripe = require("../stripeClient");
 const pool = require("../db");
 const authenticateToken = require("../middleware/authMiddleware");
 
+function generateMembershipCode(userId) {
+  const rand = Math.floor(100000 + Math.random() * 900000);
+  return `GMPRO-${userId}-${rand}`;
+}
+
+function safeUnixToDateOnly(unixSeconds) {
+  const n = Number(unixSeconds);
+  if (!n || Number.isNaN(n)) return null;
+  return new Date(n * 1000).toISOString().slice(0, 10);
+}
+
+async function syncMembershipFromStripe(userId) {
+  const userRes = await pool.query(
+    `SELECT id, stripe_customer_id, stripe_subscription_id, membership_code
+     FROM users
+     WHERE id = $1
+     LIMIT 1`,
+    [userId]
+  );
+
+  const user = userRes.rows[0];
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (!user.stripe_customer_id) {
+    return { synced: false, reason: "missing_customer" };
+  }
+
+  let subscription = null;
+
+  if (user.stripe_subscription_id) {
+    subscription = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+  } else {
+    const subscriptionList = await stripe.subscriptions.list({
+      customer: user.stripe_customer_id,
+      status: "all",
+      limit: 10,
+    });
+
+    subscription =
+      subscriptionList.data.find((sub) => ["active", "trialing"].includes(sub.status)) ||
+      subscriptionList.data.find((sub) => sub.status !== "canceled") ||
+      subscriptionList.data[0] ||
+      null;
+  }
+
+  if (!subscription) {
+    return { synced: false, reason: "missing_subscription" };
+  }
+
+  const status = subscription.status;
+  const isActive = status === "active" || status === "trialing";
+  const membershipStatus = isActive ? "active" : "inactive";
+  const currentPeriodEnd = safeUnixToDateOnly(subscription.current_period_end);
+  const planId = subscription?.metadata?.planId || null;
+
+  let finalMembershipCode = user.membership_code;
+  if (isActive && !finalMembershipCode) {
+    finalMembershipCode = generateMembershipCode(userId);
+
+    for (let i = 0; i < 5; i += 1) {
+      const dup = await pool.query(`SELECT 1 FROM users WHERE membership_code = $1 LIMIT 1`, [
+        finalMembershipCode,
+      ]);
+
+      if (dup.rows.length === 0) break;
+      finalMembershipCode = generateMembershipCode(userId);
+    }
+  }
+
+  await pool.query(
+    `UPDATE users
+     SET stripe_subscription_id = $1,
+         subscription_status = $2::varchar,
+         membership_status = $3,
+         membership_expiry = $4::date,
+         membership_code = COALESCE($5, membership_code),
+         membership_plan_id = COALESCE($6, membership_plan_id)
+     WHERE id = $7`,
+    [subscription.id, status, membershipStatus, currentPeriodEnd, finalMembershipCode, planId, userId]
+  );
+
+  return {
+    synced: true,
+    subscription_status: status,
+    membership_status: membershipStatus,
+    membership_expiry: currentPeriodEnd,
+    membership_code: finalMembershipCode,
+    membership_plan_id: planId,
+  };
+}
+
 // ✅ POST /api/billing/create-checkout-session
 router.post("/create-checkout-session", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { planId } = req.body;
+    const { planId, successUrl, cancelUrl } = req.body;
 
     if (!planId) return res.status(400).json({ message: "planId is required" });
 
@@ -61,12 +154,28 @@ router.post("/create-checkout-session", authenticateToken, async (req, res) => {
       ]);
     }
 
+    const resolvedSuccessUrl =
+      typeof successUrl === "string" && successUrl.trim()
+        ? successUrl.trim()
+        : process.env.FRONTEND_SUCCESS_URL;
+
+    const resolvedCancelUrl =
+      typeof cancelUrl === "string" && cancelUrl.trim()
+        ? cancelUrl.trim()
+        : process.env.FRONTEND_CANCEL_URL;
+
+    if (!resolvedSuccessUrl || !resolvedCancelUrl) {
+      return res.status(400).json({
+        message: "Missing success/cancel URLs for checkout",
+      });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
       line_items: [{ price: plan.stripe_price_id, quantity: 1 }],
-      success_url: process.env.FRONTEND_SUCCESS_URL,
-      cancel_url: process.env.FRONTEND_CANCEL_URL,
+      success_url: resolvedSuccessUrl,
+      cancel_url: resolvedCancelUrl,
       metadata: {
         planId: String(planId),
         userId: String(userId),
@@ -82,6 +191,17 @@ router.post("/create-checkout-session", authenticateToken, async (req, res) => {
     return res.status(200).json({ url: session.url });
   } catch (err) {
     console.error("create-checkout-session error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/sync-membership", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const result = await syncMembershipFromStripe(userId);
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("sync-membership error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 });

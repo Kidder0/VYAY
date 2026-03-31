@@ -15,23 +15,8 @@ import * as WebBrowser from "expo-web-browser";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiFetch } from "../api";
-
-const COLORS = {
-  bg: "#000000",
-  bgDeep: "#050505",
-  card: "#121212",
-  cardSoft: "#171717",
-  border: "#232323",
-  borderSoft: "#2E2E2E",
-  primary: "#3B82F6",
-  primarySoft: "#93C5FD",
-  white: "#FFFFFF",
-  softWhite: "#E5E7EB",
-  muted: "#A1A1AA",
-  muted2: "#71717A",
-  success: "#22C55E",
-  danger: "#EF4444",
-};
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
 function resolveBillingPlanId(plan) {
   const raw = String(plan?.name || "").trim().toLowerCase();
@@ -58,15 +43,37 @@ function normalizeMembershipPlanName(value) {
 }
 
 export default function CheckinScreen({ navigation }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [polling, setPolling] = useState(false);
   const [flash, setFlash] = useState({ visible: false, type: "success", text: "" });
   const shimmer = useMemo(() => new Animated.Value(0), []);
 
+  const syncMembership = async () => {
+    try {
+      await apiFetch("/api/billing/sync-membership", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+    } catch (error) {
+      // Stripe may not be settled yet; keep polling and let webhook fallback finish.
+    }
+  };
+
+  const refreshAll = async () => {
+    const result = await queryClient.fetchQuery({
+      queryKey: ["checkin"],
+      queryFn: () => apiFetch("/api/checkin/code"),
+    });
+
+    await queryClient.invalidateQueries({ queryKey: ["home-membership"] });
+    return result;
+  };
+
   const checkinQuery = useQuery({
     queryKey: ["checkin"],
     queryFn: () => apiFetch("/api/checkin/code"),
-    refetchInterval: 30000,
+    refetchInterval: polling ? 1500 : false,
     refetchOnMount: true,
   });
 
@@ -80,10 +87,6 @@ export default function CheckinScreen({ navigation }) {
     checkinData.membership_plan_name || checkinData.membership_type || ""
   );
 
-  const refreshAll = async () => {
-    await queryClient.invalidateQueries({ queryKey: ["checkin"] });
-  };
-
   const goToHistory = () => navigation.navigate("CheckinHistory");
 
   const startCheckout = async (plan) => {
@@ -94,7 +97,7 @@ export default function CheckinScreen({ navigation }) {
         setFlash({
           visible: true,
           type: "error",
-          text: "This plan is not linked to billing yet.",
+          text: t("checkin_plan_not_linked"),
         });
         setTimeout(() => setFlash({ visible: false, type: "error", text: "" }), 1600);
         return;
@@ -114,12 +117,17 @@ export default function CheckinScreen({ navigation }) {
       }
 
       setPolling(true);
-      await WebBrowser.openBrowserAsync(res.url);
+      const browserResult = await WebBrowser.openBrowserAsync(res.url);
+
+      if (browserResult?.type !== "cancel") {
+        await syncMembership();
+        await refreshAll();
+      }
     } catch (err) {
       setFlash({
         visible: true,
         type: "error",
-        text: String(err?.message || "Unable to start checkout"),
+        text: String(err?.message || t("checkin_unable_checkout")),
       });
       setTimeout(() => setFlash({ visible: false, type: "error", text: "" }), 1800);
     }
@@ -144,14 +152,14 @@ export default function CheckinScreen({ navigation }) {
 
   useEffect(() => {
     const sub = Linking.addEventListener("url", () => {
-      refreshAll();
+      syncMembership().finally(refreshAll);
       setPolling(true);
     });
 
     (async () => {
       const initialUrl = await Linking.getInitialURL();
       if (initialUrl) {
-        refreshAll();
+        syncMembership().finally(refreshAll);
       }
     })();
 
@@ -163,10 +171,10 @@ export default function CheckinScreen({ navigation }) {
       const url = event?.url || "";
 
       if (url.includes("status=success")) {
-        setFlash({ visible: true, type: "success", text: "Payment completed" });
+        setFlash({ visible: true, type: "success", text: t("checkin_payment_completed") });
         setTimeout(() => setFlash({ visible: false, type: "success", text: "" }), 1400);
       } else if (url.includes("status=error") || url.includes("status=cancel")) {
-        setFlash({ visible: true, type: "error", text: "Payment canceled or failed" });
+        setFlash({ visible: true, type: "error", text: t("checkin_payment_failed") });
         setTimeout(() => setFlash({ visible: false, type: "error", text: "" }), 1400);
       }
     });
@@ -178,13 +186,13 @@ export default function CheckinScreen({ navigation }) {
     if (!polling) return;
 
     let attempts = 0;
-    const maxAttempts = 15;
+    const maxAttempts = 20;
 
     const timer = setInterval(async () => {
       attempts += 1;
 
-      await queryClient.invalidateQueries({ queryKey: ["checkin"] });
-      const latest = queryClient.getQueryData(["checkin"]);
+      await syncMembership();
+      const latest = await refreshAll();
       const stillShowingPlans = !!latest?.show_plans;
 
       if (!stillShowingPlans || attempts >= maxAttempts) {
@@ -201,7 +209,7 @@ export default function CheckinScreen({ navigation }) {
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading your keytag...</Text>
+          <Text style={styles.loadingText}>{t("checkin_loading_keytag")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -212,13 +220,13 @@ export default function CheckinScreen({ navigation }) {
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
         <View style={styles.centerWrap}>
           <View style={styles.errorCard}>
-            <Text style={styles.pageTitle}>Check-in</Text>
+            <Text style={styles.pageTitle}>{t("home_checkin")}</Text>
             <Text style={styles.pageSubTitle}>
-              {String(checkinQuery.error?.message || "Error loading check-in")}
+              {String(checkinQuery.error?.message || t("checkin_error_loading"))}
             </Text>
 
             <TouchableOpacity style={styles.primaryBtn} onPress={refreshAll} activeOpacity={0.9}>
-              <Text style={styles.primaryBtnText}>Refresh</Text>
+              <Text style={styles.primaryBtnText}>{t("common_refresh")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -242,23 +250,23 @@ export default function CheckinScreen({ navigation }) {
 
         <ScrollView contentContainerStyle={styles.containerScroll} showsVerticalScrollIndicator={false}>
           <View style={styles.headerWrap}>
-            <Text style={styles.pageTitle}>Choose a Plan</Text>
+            <Text style={styles.pageTitle}>{t("checkin_title_locked")}</Text>
             <Text style={styles.pageSubTitle}>
-              You need an active membership to unlock your check-in barcode.
+              {t("checkin_sub_locked")}
             </Text>
           </View>
 
           <TouchableOpacity style={styles.secondaryWideBtn} onPress={goToHistory} activeOpacity={0.9}>
-            <Text style={styles.secondaryWideBtnText}>View History</Text>
+            <Text style={styles.secondaryWideBtnText}>{t("checkin_view_history")}</Text>
           </TouchableOpacity>
 
           {plans.length === 0 ? (
             <View style={styles.planCard}>
-              <Text style={styles.planTitle}>Plans not loaded</Text>
-              <Text style={styles.planSub}>Tap refresh to try again.</Text>
+              <Text style={styles.planTitle}>{t("checkin_plans_not_loaded")}</Text>
+              <Text style={styles.planSub}>{t("checkin_tap_refresh")}</Text>
 
               <TouchableOpacity style={styles.primaryBtn} onPress={refreshAll} activeOpacity={0.9}>
-                <Text style={styles.primaryBtnText}>Refresh</Text>
+                <Text style={styles.primaryBtnText}>{t("common_refresh")}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -292,17 +300,17 @@ export default function CheckinScreen({ navigation }) {
                   onPress={() => startCheckout(p)}
                   activeOpacity={0.9}
                 >
-                  <Text style={styles.primaryBtnText}>Buy Plan</Text>
+                  <Text style={styles.primaryBtnText}>{t("checkin_buy_plan")}</Text>
                 </TouchableOpacity>
               </View>
             ))
           )}
 
           {polling ? (
-            <Text style={styles.helperText}>Waiting for payment confirmation...</Text>
+            <Text style={styles.helperText}>{t("checkin_waiting")}</Text>
           ) : (
             <Text style={styles.helperText}>
-              After payment, return here and refresh if needed.
+              {t("checkin_after_payment")}
             </Text>
           )}
         </ScrollView>
@@ -325,8 +333,8 @@ export default function CheckinScreen({ navigation }) {
 
       <ScrollView contentContainerStyle={styles.containerScroll} showsVerticalScrollIndicator={false}>
         <View style={styles.headerWrap}>
-          <Text style={styles.pageTitle}>Member Keytag</Text>
-          <Text style={styles.pageSubTitle}>Show this at the front desk to check in</Text>
+          <Text style={styles.pageTitle}>{t("checkin_member_keytag")}</Text>
+          <Text style={styles.pageSubTitle}>{t("checkin_member_sub")}</Text>
         </View>
 
         <View style={styles.membershipCard}>
@@ -336,20 +344,20 @@ export default function CheckinScreen({ navigation }) {
           <View style={styles.topBadgeRow}>
             <Text style={styles.brandText}>VYAY FITNESS</Text>
             <View style={styles.activeBadge}>
-              <Text style={styles.activeBadgeText}>ACTIVE MEMBER</Text>
+              <Text style={styles.activeBadgeText}>{t("checkin_active_member")}</Text>
             </View>
           </View>
 
           <View style={styles.planBlock}>
             <Text style={styles.membershipLabel}>{membershipPlanName}</Text>
-            <Text style={styles.tagline}>Train hard. Stay consistent.</Text>
+            <Text style={styles.tagline}>{t("home_tagline")}</Text>
           </View>
 
           <View style={styles.barcodeOuter}>
             {!barcode ? (
               <View style={styles.barcodeMissingBox}>
                 <MaterialCommunityIcons name="barcode-off" size={34} color={COLORS.danger} />
-                <Text style={styles.barcodeMissingText}>Barcode missing. Tap refresh.</Text>
+                <Text style={styles.barcodeMissingText}>{t("checkin_barcode_missing")}</Text>
               </View>
             ) : (
               <View style={styles.barcodeFrame}>
@@ -371,12 +379,14 @@ export default function CheckinScreen({ navigation }) {
           </View>
 
           <View style={styles.codeBlock}>
-            <Text style={styles.memberCodeLabel}>Membership Code</Text>
-            <Text style={styles.memberCodeValue}>{membershipCode || "Not available"}</Text>
+            <Text style={styles.memberCodeLabel}>{t("checkin_member_code")}</Text>
+            <Text style={styles.memberCodeValue}>{membershipCode || t("checkin_not_available")}</Text>
 
             {membershipExpiry ? (
               <Text style={styles.expiryText}>
-                Valid until {new Date(membershipExpiry).toLocaleDateString()}
+                {t("checkin_valid_until", {
+                  date: new Date(membershipExpiry).toLocaleDateString(),
+                })}
               </Text>
             ) : null}
           </View>
@@ -384,12 +394,12 @@ export default function CheckinScreen({ navigation }) {
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.secondaryBtnHalf} onPress={refreshAll} activeOpacity={0.9}>
               <Ionicons name="refresh" size={16} color={COLORS.softWhite} />
-              <Text style={styles.secondaryBtnText}>Refresh</Text>
+              <Text style={styles.secondaryBtnText}>{t("common_refresh")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.primaryBtnHalf} onPress={goToHistory} activeOpacity={0.9}>
               <Ionicons name="time-outline" size={16} color={COLORS.white} />
-              <Text style={styles.primaryBtnHalfText}>History</Text>
+              <Text style={styles.primaryBtnHalfText}>{t("checkin_history")}</Text>
             </TouchableOpacity>
           </View>
         </View>

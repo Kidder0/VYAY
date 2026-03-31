@@ -6,14 +6,17 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const CARD = "#121212";
-const MUTED = "rgba(255,255,255,0.65)";
-const BORDER = "rgba(255,255,255,0.08)";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const CARD = COLORS.card;
+const MUTED = COLORS.muted;
+const BORDER = COLORS.border;
 
 export default function ResetSuccessScreen({ navigation, route }) {
+  const { t } = useI18n();
   const email = route?.params?.email || "";
 
   const goToLogin = () => {
@@ -29,19 +32,16 @@ export default function ResetSuccessScreen({ navigation, route }) {
         <View style={styles.card}>
           <Text style={styles.emoji}>✅</Text>
 
-          <Text style={styles.title}>Password Changed</Text>
+          <Text style={styles.title}>{t("reset_success_changed_title")}</Text>
 
-          <Text style={styles.sub}>
-            Your password has been successfully updated.
-            You can now login with your new password.
-          </Text>
+          <Text style={styles.sub}>{t("reset_success_changed_sub")}</Text>
 
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={goToLogin}
             activeOpacity={0.9}
           >
-            <Text style={styles.primaryText}>Back to Login</Text>
+            <Text style={styles.primaryText}>{t("reset_success_button")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   },
 
   primaryText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontSize: 16,
     fontWeight: "900",
   },

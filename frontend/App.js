@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 
@@ -25,6 +25,9 @@ import EditProfileScreen from "./screens/EditProfileScreen";
 import ChangeEmailScreen from "./screens/ChangeEmailScreen";
 import ChangePasswordScreen from "./screens/ChangePasswordScreen";
 import StaffScannerScreen from "./screens/StaffScannerScreen";
+import MawabScreen from "./screens/MawabScreen";
+import { subscribeToAuthExpired } from "./api";
+import { I18nProvider } from "./i18n";
 
 const Stack = createNativeStackNavigator();
 
@@ -64,12 +67,14 @@ const linking = {
       ChangeEmail: "change-email",
       ChangePassword: "change-password",
       StaffScanner: "staff-scanner",
+      Mawab: "mawab",
     },
   },
 };
 
 export default function App() {
   const [initialRoute, setInitialRoute] = useState(null);
+  const navigationRef = useNavigationContainerRef();
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (status) => {
@@ -100,37 +105,59 @@ export default function App() {
     initializeApp();
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthExpired(async () => {
+      const hasSeenOnboarding = await AsyncStorage.getItem(ONBOARDING_KEY);
+      const nextRoute = hasSeenOnboarding ? "Login" : "Onboarding";
+
+      setInitialRoute(nextRoute);
+
+      if (navigationRef.isReady()) {
+        navigationRef.reset({
+          index: 0,
+          routes: [{ name: nextRoute }],
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [navigationRef]);
+
   if (!initialRoute) return null;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <NavigationContainer linking={linking}>
-        <Stack.Navigator
-          initialRouteName={initialRoute}
-          screenOptions={{ headerShown: false }}
-        >
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
-          <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
+    <I18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <NavigationContainer linking={linking} ref={navigationRef}>
+          <Stack.Navigator
+            key={initialRoute}
+            initialRouteName={initialRoute}
+            screenOptions={{ headerShown: false }}
+          >
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
 
-          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-          <Stack.Screen name="VerifyResetOtp" component={VerifyResetOtpScreen} />
-          <Stack.Screen name="SetNewPassword" component={SetNewPasswordScreen} />
-          <Stack.Screen name="ResetSuccess" component={ResetSuccessScreen} />
+            <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+            <Stack.Screen name="VerifyResetOtp" component={VerifyResetOtpScreen} />
+            <Stack.Screen name="SetNewPassword" component={SetNewPasswordScreen} />
+            <Stack.Screen name="ResetSuccess" component={ResetSuccessScreen} />
 
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Checkin" component={CheckinScreen} />
-          <Stack.Screen name="CheckinHistory" component={CheckinHistoryScreen} />
-          <Stack.Screen name="Branches" component={BranchesScreen} />
-          <Stack.Screen name="Account" component={AccountScreen} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-          <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-          <Stack.Screen name="ChangeEmail" component={ChangeEmailScreen} />
-          <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
-          <Stack.Screen name="StaffScanner" component={StaffScannerScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </QueryClientProvider>
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="Checkin" component={CheckinScreen} />
+            <Stack.Screen name="CheckinHistory" component={CheckinHistoryScreen} />
+            <Stack.Screen name="Branches" component={BranchesScreen} />
+            <Stack.Screen name="Account" component={AccountScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+            <Stack.Screen name="ChangeEmail" component={ChangeEmailScreen} />
+            <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+            <Stack.Screen name="StaffScanner" component={StaffScannerScreen} />
+            <Stack.Screen name="Mawab" component={MawabScreen} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </QueryClientProvider>
+    </I18nProvider>
   );
 }

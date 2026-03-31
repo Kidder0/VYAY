@@ -9,19 +9,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { apiFetch } from "../api";
-
-const COLORS = {
-  yellow: "#FFD700",
-  black: "#0B0B0B",
-  card: "#121212",
-  border: "rgba(255,255,255,0.10)",
-  muted: "rgba(255,255,255,0.65)",
-  white: "#FFFFFF",
-  danger: "#EF4444",
-  ok: "#22C55E",
-};
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
 export default function StaffScannerScreen({ navigation, route }) {
+  const { t } = useI18n();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [status, setStatus] = useState({ type: "idle", msg: "" });
@@ -40,7 +32,7 @@ export default function StaffScannerScreen({ navigation, route }) {
     if (cooldownRef.current) return;
 
     cooldownRef.current = true;
-    setStatus({ type: "loading", msg: "Verifying..." });
+    setStatus({ type: "loading", msg: t("staff_scanner_verifying") });
 
     try {
       const res = await apiFetch("/api/checkin/verify", {
@@ -67,13 +59,13 @@ export default function StaffScannerScreen({ navigation, route }) {
       } else {
         setStatus({
           type: "err",
-          msg: message || "Verification failed",
+          msg: message || t("staff_scanner_verification_failed"),
         });
       }
     } catch (e) {
       setStatus({
         type: "err",
-        msg: e?.message || "Verification failed",
+        msg: e?.message || t("staff_scanner_verification_failed"),
       });
     } finally {
       setScanned(true);
@@ -94,7 +86,7 @@ export default function StaffScannerScreen({ navigation, route }) {
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
         <ActivityIndicator
           style={{ marginTop: 100 }}
-          color={COLORS.yellow}
+          color={COLORS.primary}
           size="large"
         />
       </SafeAreaView>
@@ -105,15 +97,15 @@ export default function StaffScannerScreen({ navigation, route }) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
         <View style={styles.container}>
-          <Text style={styles.title}>Staff Scanner</Text>
-          <Text style={styles.subTitle}>Camera permission is required.</Text>
+          <Text style={styles.title}>{t("staff_scanner_title")}</Text>
+          <Text style={styles.subTitle}>{t("staff_scanner_camera_required")}</Text>
 
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={requestPermission}
             activeOpacity={0.9}
           >
-            <Text style={styles.primaryBtnText}>Allow Camera</Text>
+            <Text style={styles.primaryBtnText}>{t("staff_scanner_allow_camera")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -121,7 +113,7 @@ export default function StaffScannerScreen({ navigation, route }) {
             onPress={() => navigation.goBack()}
             activeOpacity={0.9}
           >
-            <Text style={styles.outlineBtnText}>Back</Text>
+            <Text style={styles.outlineBtnText}>{t("common_back")}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -130,16 +122,16 @@ export default function StaffScannerScreen({ navigation, route }) {
 
   const statusColor =
     status.type === "ok"
-      ? COLORS.ok
+      ? COLORS.success
       : status.type === "err"
       ? COLORS.danger
-      : COLORS.yellow;
+      : COLORS.primary;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        <Text style={styles.title}>Staff Scanner</Text>
-        <Text style={styles.subTitle}>Scan member barcode</Text>
+        <Text style={styles.title}>{t("staff_scanner_title")}</Text>
+        <Text style={styles.subTitle}>{t("staff_scanner_scan_member")}</Text>
 
         <View style={styles.card}>
           <View style={styles.cameraFrame}>
@@ -164,17 +156,17 @@ export default function StaffScannerScreen({ navigation, route }) {
             <View style={styles.overlay}>
               <View style={styles.scanBox} />
               <Text style={styles.overlayText}>
-                {scanned ? "Tap Scan Again" : "Align barcode in the box"}
+                {scanned ? t("staff_scanner_tap_again") : t("staff_scanner_align")}
               </Text>
             </View>
           </View>
 
           <View style={styles.statusBox}>
             {status.type === "loading" ? (
-              <ActivityIndicator color={COLORS.yellow} />
+              <ActivityIndicator color={COLORS.primary} />
             ) : (
               <Text style={[styles.statusText, { color: statusColor }]}>
-                {status.msg || "Ready"}
+                {status.msg || t("staff_scanner_ready")}
               </Text>
             )}
           </View>
@@ -184,7 +176,7 @@ export default function StaffScannerScreen({ navigation, route }) {
             onPress={resetScan}
             activeOpacity={0.9}
           >
-            <Text style={styles.outlineBtnText}>Scan Again</Text>
+            <Text style={styles.outlineBtnText}>{t("staff_scanner_scan_again")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -193,10 +185,10 @@ export default function StaffScannerScreen({ navigation, route }) {
           onPress={() => navigation.goBack()}
           activeOpacity={0.9}
         >
-          <Text style={styles.outlineBtnText}>Back</Text>
+          <Text style={styles.outlineBtnText}>{t("common_back")}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.helper}>Branch ID in request: {branchId}</Text>
+        <Text style={styles.helper}>{t("staff_scanner_branch_id", { branchId })}</Text>
       </View>
     </SafeAreaView>
   );
@@ -205,7 +197,7 @@ export default function StaffScannerScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.black,
+    backgroundColor: COLORS.bgDeep,
   },
 
   container: {
@@ -217,7 +209,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "900",
-    color: COLORS.yellow,
+    color: COLORS.primary,
     marginTop: 8,
   },
 
@@ -246,7 +238,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: "#000",
+    backgroundColor: COLORS.bg,
   },
 
   overlay: {
@@ -259,7 +251,7 @@ const styles = StyleSheet.create({
     width: "80%",
     height: 140,
     borderWidth: 2,
-    borderColor: COLORS.yellow,
+    borderColor: COLORS.primary,
     borderRadius: 12,
     backgroundColor: "rgba(0,0,0,0.15)",
   },
@@ -292,7 +284,7 @@ const styles = StyleSheet.create({
 
   primaryBtn: {
     width: "100%",
-    backgroundColor: COLORS.yellow,
+    backgroundColor: COLORS.primary,
     paddingVertical: 14,
     borderRadius: 30,
     alignItems: "center",
@@ -300,14 +292,14 @@ const styles = StyleSheet.create({
   },
 
   primaryBtnText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontWeight: "900",
   },
 
   outlineBtn: {
     width: "100%",
     borderWidth: 1.5,
-    borderColor: COLORS.yellow,
+    borderColor: COLORS.primary,
     paddingVertical: 14,
     borderRadius: 30,
     alignItems: "center",
@@ -316,7 +308,7 @@ const styles = StyleSheet.create({
   },
 
   outlineBtnText: {
-    color: COLORS.yellow,
+    color: COLORS.primary,
     fontWeight: "900",
   },
 

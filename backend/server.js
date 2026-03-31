@@ -9,6 +9,7 @@ const classRoutes = require('./routes/classes');
 const checkinRoutes = require('./routes/checkin');
 const billingRoutes = require('./routes/billing');
 const stripeWebhookRoutes = require('./routes/stripeWebhook');
+const mawabRoutes = require('./routes/mawab');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -44,6 +45,7 @@ app.use('/api/classes', classRoutes);
 app.use('/api/checkin', checkinRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/branches', branchRoutes);
+app.use('/api/mawab', mawabRoutes);
 
 /* ============================================
    ✅ Test Routes

@@ -15,14 +15,17 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const CARD = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const MUTED = "rgba(255,255,255,0.65)";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const CARD = COLORS.card;
+const BORDER = COLORS.border;
+const MUTED = COLORS.muted;
 
 export default function RegisterScreen({ navigation }) {
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -35,7 +38,7 @@ export default function RegisterScreen({ navigation }) {
     const cleanPhone = phoneNumber.trim();
 
     if (!cleanName || !cleanEmail || !cleanPhone || !password) {
-      Alert.alert("Missing info", "Please fill all fields.");
+      Alert.alert(t("common_error"), "Please fill all fields.");
       return;
     }
 
@@ -59,12 +62,12 @@ export default function RegisterScreen({ navigation }) {
         body: JSON.stringify({ email: cleanEmail }),
       });
 
-      Alert.alert("Success", "OTP sent to your email.");
+      Alert.alert(t("common_success"), "OTP sent to your email.");
       navigation.navigate("VerifyEmail", {
         email: cleanEmail,
       });
     } catch (err) {
-      Alert.alert("Error", err.message || "Cannot connect to server");
+      Alert.alert(t("common_error"), err.message || "Cannot connect to server");
     } finally {
       setLoading(false);
     }
@@ -83,13 +86,11 @@ export default function RegisterScreen({ navigation }) {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.card}>
-              <Text style={styles.title}>Create Account</Text>
-              <Text style={styles.subtitle}>
-                Join the strongest gym community
-              </Text>
+              <Text style={styles.title}>{t("register_title")}</Text>
+              <Text style={styles.subtitle}>{t("register_subtitle")}</Text>
 
               <TextInput
-                placeholder="Full Name"
+                placeholder={t("register_full_name")}
                 placeholderTextColor={MUTED}
                 style={styles.input}
                 value={name}
@@ -97,7 +98,7 @@ export default function RegisterScreen({ navigation }) {
               />
 
               <TextInput
-                placeholder="Email"
+                placeholder={t("register_email")}
                 placeholderTextColor={MUTED}
                 style={styles.input}
                 value={email}
@@ -107,7 +108,7 @@ export default function RegisterScreen({ navigation }) {
               />
 
               <TextInput
-                placeholder="Phone Number"
+                placeholder={t("register_phone")}
                 placeholderTextColor={MUTED}
                 style={styles.input}
                 value={phoneNumber}
@@ -116,7 +117,7 @@ export default function RegisterScreen({ navigation }) {
               />
 
               <TextInput
-                placeholder="Password"
+                placeholder={t("register_password")}
                 placeholderTextColor={MUTED}
                 secureTextEntry
                 style={styles.input}
@@ -125,10 +126,7 @@ export default function RegisterScreen({ navigation }) {
                 onSubmitEditing={handleRegister}
               />
 
-              <Text style={styles.note}>
-                Password must be at least 8 characters and include uppercase,
-                lowercase, number, and special character.
-              </Text>
+              <Text style={styles.note}>{t("register_note")}</Text>
 
               <TouchableOpacity
                 style={[styles.primaryBtn, loading && styles.disabledBtn]}
@@ -137,9 +135,9 @@ export default function RegisterScreen({ navigation }) {
                 activeOpacity={0.9}
               >
                 {loading ? (
-                  <ActivityIndicator color="#000" />
+                  <ActivityIndicator color={COLORS.darkText} />
                 ) : (
-                  <Text style={styles.primaryText}>Register</Text>
+                  <Text style={styles.primaryText}>{t("register_button")}</Text>
                 )}
               </TouchableOpacity>
 
@@ -147,9 +145,7 @@ export default function RegisterScreen({ navigation }) {
                 onPress={() => navigation.navigate("Login")}
                 activeOpacity={0.8}
               >
-                <Text style={styles.link}>
-                  Already have an account? Login
-                </Text>
+                <Text style={styles.link}>{t("register_have_account")}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -192,14 +188,14 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: BORDER,
     paddingVertical: 14,
     paddingHorizontal: 14,
     marginBottom: 14,
     borderRadius: 14,
-    color: "#fff",
+    color: COLORS.white,
   },
 
   note: {
@@ -222,7 +218,7 @@ const styles = StyleSheet.create({
   },
 
   primaryText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontSize: 16,
     fontWeight: "900",
   },

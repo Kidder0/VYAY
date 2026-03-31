@@ -15,27 +15,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
 const { width } = Dimensions.get("window");
 const SLIDE_WIDTH = width - 40;
 const AUTO_SLIDE_MS = 3500;
-
-const COLORS = {
-  bg: "#000000",
-  bgDeep: "#050505",
-  card: "#121212",
-  cardSoft: "#171717",
-  border: "#232323",
-  borderSoft: "#2E2E2E",
-  primary: "#3B82F6",
-  primarySoft: "#93C5FD",
-  white: "#FFFFFF",
-  softWhite: "#E5E7EB",
-  muted: "#A1A1AA",
-  muted2: "#71717A",
-  darkText: "#111111",
-  success: "#34D399",
-};
 
 function normalizeMembershipName(value) {
   const raw = String(value || "").trim().toLowerCase();
@@ -49,23 +34,23 @@ function normalizeMembershipName(value) {
   return value;
 }
 
-function buildSlides(hasMembership, membershipPlan) {
+function buildSlides(hasMembership, membershipPlan, t) {
   if (!hasMembership) {
     return [
       {
         id: "no-plan-build",
-        eyebrow: "START HERE",
-        title: "Build",
-        text: "Essential access and a strong starting point for your training journey.",
-        cta: "Explore Build",
+        eyebrow: t("home_start_here"),
+        title: t("home_build_title"),
+        text: t("home_build_text"),
+        cta: t("home_explore_build"),
         icon: "barbell-outline",
       },
       {
         id: "no-plan-dominate",
-        eyebrow: "LEVEL UP",
+        eyebrow: t("home_level_up"),
         title: "Dominate",
-        text: "More flexibility, better access, and a stronger premium member experience.",
-        cta: "Explore Dominate",
+        text: t("home_dominate_text"),
+        cta: t("home_explore_dominate"),
         icon: "flash-outline",
       },
     ];
@@ -75,18 +60,18 @@ function buildSlides(hasMembership, membershipPlan) {
     return [
       {
         id: "build-upgrade-1",
-        eyebrow: "UPGRADE",
+        eyebrow: t("home_upgrade"),
         title: "Dominate",
-        text: "Unlock stronger access, premium flexibility, and more member benefits.",
-        cta: "Upgrade Now",
+        text: t("home_upgrade_text"),
+        cta: t("home_upgrade_now"),
         icon: "arrow-up-outline",
       },
       {
         id: "build-upgrade-2",
-        eyebrow: "NEXT LEVEL",
-        title: "Train Bigger",
-        text: "Move beyond the basics with a more premium and flexible gym experience.",
-        cta: "See Benefits",
+        eyebrow: t("home_next_level"),
+        title: t("home_train_bigger"),
+        text: t("home_train_bigger_text"),
+        cta: t("home_see_benefits"),
         icon: "trending-up-outline",
       },
     ];
@@ -95,65 +80,66 @@ function buildSlides(hasMembership, membershipPlan) {
   return [
     {
       id: "dominate-product-1",
-      eyebrow: "RECOVERY",
-      title: "Protein",
-      text: "Support recovery, muscle growth, and consistency with smart nutrition choices.",
-      cta: "View Products",
+      eyebrow: t("home_recovery"),
+      title: t("home_protein"),
+      text: t("home_protein_text"),
+      cta: t("home_view_products"),
       icon: "nutrition-outline",
     },
     {
       id: "dominate-product-2",
-      eyebrow: "ON THE GO",
-      title: "Bars & Snacks",
-      text: "Quick fuel for busy days when you still want to stay on track.",
-      cta: "Shop Now",
+      eyebrow: t("home_on_the_go"),
+      title: t("home_bars_snacks"),
+      text: t("home_bars_text"),
+      cta: t("home_shop_now"),
       icon: "cafe-outline",
     },
     {
       id: "dominate-product-3",
-      eyebrow: "ESSENTIALS",
-      title: "Gym Gear",
-      text: "Accessories that make your daily training cleaner, easier, and more complete.",
-      cta: "Browse Gear",
+      eyebrow: t("home_essentials"),
+      title: t("home_gym_gear"),
+      text: t("home_gym_gear_text"),
+      cta: t("home_browse_gear"),
       icon: "shirt-outline",
     },
   ];
 }
 
-function getHeroContent(hasMembership, membershipPlan) {
+function getHeroContent(hasMembership, membershipPlan, t) {
   if (!hasMembership) {
     return {
-      badge: "GET STARTED",
-      titleTop: "WELCOME TO",
+      badge: t("home_get_started_badge"),
+      titleTop: t("home_welcome_to"),
       titleMain: "VYAY",
-      subtitle1: "Train smarter. Stay consistent.",
-      subtitle2: "Join today and start building momentum.",
-      button: "Join Now",
+      subtitle1: t("home_tagline"),
+      subtitle2: t("home_join_today"),
+      button: t("home_join_now"),
     };
   }
 
   if (membershipPlan === "Build") {
     return {
-      badge: "UPGRADE AVAILABLE",
-      titleTop: "MOVE UP TO",
+      badge: t("home_upgrade_badge"),
+      titleTop: t("home_move_up"),
       titleMain: "DOMINATE",
-      subtitle1: "More access. More flexibility.",
-      subtitle2: "Upgrade for a stronger gym experience.",
-      button: "Explore Dominate",
+      subtitle1: t("home_more_access"),
+      subtitle2: t("home_upgrade_for_more"),
+      button: t("home_explore_dominate"),
     };
   }
 
   return {
-    badge: "PREMIUM MEMBER",
-    titleTop: "READY FOR",
-    titleMain: "MORE",
-    subtitle1: "Keep your momentum strong.",
-    subtitle2: "Explore premium products and member benefits.",
-    button: "View Products",
+    badge: t("home_premium_badge"),
+    titleTop: t("home_ready_for"),
+    titleMain: t("home_more"),
+    subtitle1: t("home_keep_momentum"),
+    subtitle2: t("home_premium_explore"),
+    button: t("home_view_products"),
   };
 }
 
 export default function HomeScreen({ navigation }) {
+  const { t } = useI18n();
   const flatListRef = useRef(null);
   const autoSlideRef = useRef(null);
   const [activeSlide, setActiveSlide] = useState(0);
@@ -165,6 +151,11 @@ export default function HomeScreen({ navigation }) {
   const goCheckin = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate("Checkin");
+  }, [navigation]);
+
+  const goMawab = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate("Mawab");
   }, [navigation]);
 
   const membershipQuery = useQuery({
@@ -185,13 +176,13 @@ export default function HomeScreen({ navigation }) {
   );
 
   const heroContent = useMemo(
-    () => getHeroContent(hasMembership, membershipPlan),
-    [hasMembership, membershipPlan]
+    () => getHeroContent(hasMembership, membershipPlan, t),
+    [hasMembership, membershipPlan, t]
   );
 
   const slides = useMemo(
-    () => buildSlides(hasMembership, membershipPlan),
-    [hasMembership, membershipPlan]
+    () => buildSlides(hasMembership, membershipPlan, t),
+    [hasMembership, membershipPlan, t]
   );
 
   useEffect(() => {
@@ -260,10 +251,10 @@ export default function HomeScreen({ navigation }) {
   }, [hasMembership, membershipPlan, goCheckin, goAccount]);
 
   const sectionTitle = !hasMembership
-    ? "Membership Plans"
+    ? t("home_membership_plans")
     : membershipPlan === "Build"
-    ? "Upgrade Recommendations"
-    : "Recommended For You";
+    ? t("home_upgrade_recommendations")
+    : t("home_recommended");
 
   const renderHero = () => {
     return (
@@ -299,13 +290,11 @@ export default function HomeScreen({ navigation }) {
   };
 
   const renderQuickActions = () => {
-    if (!hasMembership) return null;
-
     return (
       <View style={styles.panelCard}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <Text style={styles.sectionTitle}>{t("home_quick_actions")}</Text>
         <Text style={styles.sectionSubtitle}>
-          Open your membership access instantly.
+          {t("home_quick_sub")}
         </Text>
 
         <TouchableOpacity
@@ -323,9 +312,9 @@ export default function HomeScreen({ navigation }) {
             </View>
 
             <View style={styles.primaryActionTextWrap}>
-              <Text style={styles.primaryActionTitle}>Check-in</Text>
+              <Text style={styles.primaryActionTitle}>{t("home_checkin")}</Text>
               <Text style={styles.primaryActionSubtitle}>
-                Open your membership barcode
+                {t("home_checkin_sub")}
               </Text>
             </View>
           </View>
@@ -377,16 +366,16 @@ export default function HomeScreen({ navigation }) {
         >
           <View style={styles.topRow}>
             <View style={styles.topTextWrap}>
-              <Text style={styles.welcomeText}>Welcome back</Text>
+              <Text style={styles.welcomeText}>{t("home_welcome")}</Text>
               <Text style={styles.pageTitle}>VYAY</Text>
               <Text style={styles.pageSubtitle}>
-                Train stronger. Stay consistent.
+                {t("home_tagline")}
               </Text>
 
               {hasMembership && membershipPlan ? (
                 <View style={styles.planPill}>
                   <View style={styles.planDot} />
-                  <Text style={styles.planPillText}>{membershipPlan} Member</Text>
+                  <Text style={styles.planPillText}>{t("home_plan_member", { plan: membershipPlan })}</Text>
                 </View>
               ) : null}
             </View>
@@ -405,7 +394,7 @@ export default function HomeScreen({ navigation }) {
           {membershipQuery.isLoading ? (
             <View style={styles.loadingCard}>
               <ActivityIndicator size="small" color={COLORS.primary} />
-              <Text style={styles.loadingText}>Loading membership details...</Text>
+              <Text style={styles.loadingText}>{t("home_loading_membership")}</Text>
             </View>
           ) : null}
 
@@ -414,7 +403,7 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.sectionWrap}>
             <Text style={styles.sectionTitle}>{sectionTitle}</Text>
             <Text style={styles.sectionSubtitle}>
-              Curated for your membership experience.
+              {t("home_curated")}
             </Text>
 
             <FlatList
@@ -455,7 +444,22 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.homeNavIconWrap}>
               <Ionicons name="home" size={22} color={COLORS.white} />
             </View>
-            <Text style={styles.homeNavText}>Home</Text>
+            <Text style={styles.homeNavText}>{t("home_bottom_home")}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.homeNavButton}
+            activeOpacity={0.95}
+            onPress={goMawab}
+          >
+            <View style={[styles.homeNavIconWrap, styles.secondaryNavIconWrap]}>
+              <MaterialCommunityIcons
+                name="robot-outline"
+                size={22}
+                color={COLORS.softWhite}
+              />
+            </View>
+            <Text style={styles.homeNavText}>{t("home_bottom_mawab")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -799,6 +803,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.bgDeep,
@@ -806,6 +811,7 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.border,
     paddingTop: 10,
     paddingBottom: 18,
+    gap: 28,
   },
   homeNavButton: {
     alignItems: "center",
@@ -820,6 +826,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,
+  },
+  secondaryNavIconWrap: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   homeNavText: {
     color: COLORS.white,

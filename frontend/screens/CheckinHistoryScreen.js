@@ -10,15 +10,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const BLACK_CARD = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const TEXT_MUTED = "rgba(255,255,255,0.65)";
-const WHITE = "#FFFFFF";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const BLACK_CARD = COLORS.card;
+const BORDER = COLORS.border;
+const TEXT_MUTED = COLORS.muted;
+const WHITE = COLORS.white;
 
 export default function CheckinHistoryScreen({ navigation }) {
+  const { t } = useI18n();
   const historyQuery = useQuery({
     queryKey: ["checkinHistory"],
     queryFn: () => apiFetch("/api/checkin/history"),
@@ -38,13 +41,13 @@ export default function CheckinHistoryScreen({ navigation }) {
   if (historyQuery.isError) {
     return (
       <SafeAreaView style={[styles.container, styles.center]} edges={["top", "left", "right"]}>
-        <Text style={styles.title}>Check-in History</Text>
+        <Text style={styles.title}>{t("history_title")}</Text>
         <Text style={styles.subTitle}>
-          {String(historyQuery.error?.message || "Failed to load history")}
+          {String(historyQuery.error?.message || t("history_failed_load"))}
         </Text>
 
         <TouchableOpacity style={styles.button} onPress={() => historyQuery.refetch()}>
-          <Text style={styles.buttonText}>Retry</Text>
+          <Text style={styles.buttonText}>{t("retry")}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -56,11 +59,11 @@ export default function CheckinHistoryScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Check-in History</Text>
+        <Text style={styles.title}>{t("history_title")}</Text>
         <View style={{ width: 36 }} />
       </View>
 
-      <Text style={styles.subTitle}>Last 30 check-ins</Text>
+      <Text style={styles.subTitle}>{t("history_last_30")}</Text>
 
       <FlatList
         data={checkins}
@@ -70,7 +73,7 @@ export default function CheckinHistoryScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: 30 }}
         ListEmptyComponent={
           <View style={styles.card}>
-            <Text style={styles.emptyText}>No check-ins yet.</Text>
+            <Text style={styles.emptyText}>{t("history_empty")}</Text>
           </View>
         }
         renderItem={({ item }) => (
@@ -78,11 +81,13 @@ export default function CheckinHistoryScreen({ navigation }) {
             <Text style={styles.dateText}>
               {item.checkin_time
                 ? new Date(item.checkin_time).toLocaleString()
-                : "Unknown time"}
+                : t("history_unknown_time")}
             </Text>
 
             <Text style={styles.branchText}>
-              {item.branch_name ? `Branch: ${item.branch_name}` : "Branch unavailable"}
+              {item.branch_name
+                ? t("history_branch", { branch: item.branch_name })
+                : t("history_branch_unavailable")}
             </Text>
           </View>
         )}
@@ -169,7 +174,7 @@ const styles = StyleSheet.create({
   },
 
   buttonText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontWeight: "900",
   },
 });

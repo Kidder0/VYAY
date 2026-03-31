@@ -14,23 +14,8 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiFetch } from "../api";
 import * as Haptics from "expo-haptics";
-
-const COLORS = {
-  bg: "#000000",
-  bgDeep: "#050505",
-  card: "#121212",
-  cardSoft: "#171717",
-  border: "#232323",
-  borderSoft: "#2E2E2E",
-  primary: "#3B82F6",
-  primarySoft: "#93C5FD",
-  white: "#FFFFFF",
-  softWhite: "#E5E7EB",
-  muted: "#A1A1AA",
-  muted2: "#71717A",
-  success: "#22C55E",
-  danger: "#EF4444",
-};
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
 function normalizeMembership(value, hasMembership) {
   const raw = String(value || "").trim().toLowerCase();
@@ -120,6 +105,7 @@ function MenuItem({ icon, label, subLabel, onPress, danger = false }) {
 }
 
 export default function AccountScreen({ navigation }) {
+  const { t } = useI18n();
   const [name, setName] = useState("VYAY Member");
   const [email, setEmail] = useState("");
   const [membership, setMembership] = useState("JOIN");
@@ -176,10 +162,10 @@ export default function AccountScreen({ navigation }) {
   };
 
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("account_logout_title"), t("account_logout_message"), [
+      { text: t("common_cancel"), style: "cancel" },
       {
-        text: "Logout",
+        text: t("account_logout"),
         style: "destructive",
         onPress: async () => {
           await AsyncStorage.removeItem("token");
@@ -193,11 +179,11 @@ export default function AccountScreen({ navigation }) {
   };
 
   const handleStore = () => {
-    Alert.alert("VYAY Store", "Store screen coming next.");
+    Alert.alert(t("account_store"), t("account_store_coming"));
   };
 
   const handleHelp = () => {
-    Alert.alert("Help", "Help screen coming next.");
+    Alert.alert(t("account_help"), t("account_help_coming"));
   };
 
   const handleMembershipTap = async () => {
@@ -229,7 +215,7 @@ export default function AccountScreen({ navigation }) {
             <Ionicons name="arrow-back" size={22} color={COLORS.white} />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Account</Text>
+          <Text style={styles.headerTitle}>{t("account_title")}</Text>
 
           <View style={styles.headerSpacer} />
         </View>
@@ -237,7 +223,7 @@ export default function AccountScreen({ navigation }) {
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Loading account...</Text>
+            <Text style={styles.loadingText}>{t("account_loading")}</Text>
           </View>
         ) : (
           <>
@@ -285,20 +271,20 @@ export default function AccountScreen({ navigation }) {
             <View style={styles.section}>
               <MenuItem
                 icon="dumbbell"
-                label="My Club"
-                subLabel="View your available club access"
+                label={t("account_my_club")}
+                subLabel={t("account_my_club_sub")}
                 onPress={() => navigation.navigate("Branches")}
               />
               <MenuItem
                 icon="history"
-                label="Check-in History"
-                subLabel="See your recent visits"
+                label={t("account_history")}
+                subLabel={t("account_history_sub")}
                 onPress={() => navigation.navigate("CheckinHistory")}
               />
               <MenuItem
                 icon="shopping-outline"
-                label="VYAY Store"
-                subLabel="Browse products and essentials"
+                label={t("account_store")}
+                subLabel={t("account_store_sub")}
                 onPress={handleStore}
               />
             </View>
@@ -306,14 +292,14 @@ export default function AccountScreen({ navigation }) {
             <View style={styles.section}>
               <MenuItem
                 icon="email-outline"
-                label="Change Email"
-                subLabel="Update your email address"
+                label={t("account_change_email")}
+                subLabel={t("account_change_email_sub")}
                 onPress={() => navigation.navigate("ChangeEmail")}
               />
               <MenuItem
                 icon="cog-outline"
-                label="Settings"
-                subLabel="Language, country and app options"
+                label={t("account_settings")}
+                subLabel={t("account_settings_sub")}
                 onPress={() => navigation.navigate("Settings")}
               />
             </View>
@@ -321,14 +307,14 @@ export default function AccountScreen({ navigation }) {
             <View style={styles.section}>
               <MenuItem
                 icon="help-circle-outline"
-                label="Help"
-                subLabel="Support and assistance"
+                label={t("account_help")}
+                subLabel={t("account_help_sub")}
                 onPress={handleHelp}
               />
               <MenuItem
                 icon="logout"
-                label="Logout"
-                subLabel="Sign out from your account"
+                label={t("account_logout")}
+                subLabel={t("account_logout_sub")}
                 onPress={handleLogout}
                 danger
               />

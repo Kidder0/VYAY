@@ -17,14 +17,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const CARD = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const MUTED = "rgba(255,255,255,0.65)";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const CARD = COLORS.card;
+const BORDER = COLORS.border;
+const MUTED = COLORS.muted;
 
 export default function SetNewPasswordScreen({ navigation, route }) {
+  const { t } = useI18n();
   const { email, otp } = route.params || {};
 
   const [newPassword, setNewPassword] = useState("");
@@ -35,21 +38,21 @@ export default function SetNewPasswordScreen({ navigation, route }) {
 
   const handleChangePassword = async () => {
     if (!email || !otp) {
-      return Alert.alert("Error", "Missing email or OTP. Please verify OTP again.");
+      return Alert.alert(t("common_error"), t("missing_email_or_otp"));
     }
 
     if (!newPassword.trim() || !confirmPassword.trim()) {
-      return Alert.alert("Required", "Enter new password and confirm password");
+      return Alert.alert(t("required_title"), t("enter_new_and_confirm_password"));
     }
 
     if (newPassword !== confirmPassword) {
-      return Alert.alert("Mismatch", "Passwords do not match");
+      return Alert.alert(t("mismatch_title"), t("passwords_do_not_match"));
     }
 
     try {
       setLoading(true);
 
-      const res = await apiFetch("/api/auth/reset-password", {
+      await apiFetch("/api/auth/reset-password", {
         method: "POST",
         skipAuth: true,
         body: JSON.stringify({
@@ -67,7 +70,7 @@ export default function SetNewPasswordScreen({ navigation, route }) {
         routes: [{ name: "ResetSuccess", params: { email } }],
       });
     } catch (e) {
-      Alert.alert("Error", e.message || "Failed to reset password");
+      Alert.alert(t("common_error"), e.message || t("failed_reset_password"));
     } finally {
       setLoading(false);
     }
@@ -86,14 +89,12 @@ export default function SetNewPasswordScreen({ navigation, route }) {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.card}>
-              <Text style={styles.title}>Set New Password</Text>
-              <Text style={styles.sub}>
-                Create a strong password for your account.
-              </Text>
+              <Text style={styles.title}>{t("set_password_title")}</Text>
+              <Text style={styles.sub}>{t("set_password_sub", { email: email || "" })}</Text>
 
               <View style={styles.row}>
                 <TextInput
-                  placeholder="New Password"
+                  placeholder={t("set_password_new")}
                   placeholderTextColor={MUTED}
                   style={[styles.input, styles.inputFlex]}
                   secureTextEntry={!showNew}
@@ -105,14 +106,14 @@ export default function SetNewPasswordScreen({ navigation, route }) {
                   onPress={() => setShowNew((v) => !v)}
                 >
                   <Text style={styles.toggleText}>
-                    {showNew ? "Hide" : "Show"}
+                    {showNew ? t("hide") : t("show")}
                   </Text>
                 </Pressable>
               </View>
 
               <View style={styles.row}>
                 <TextInput
-                  placeholder="Confirm Password"
+                  placeholder={t("set_password_confirm")}
                   placeholderTextColor={MUTED}
                   style={[styles.input, styles.inputFlex]}
                   secureTextEntry={!showConfirm}
@@ -125,15 +126,12 @@ export default function SetNewPasswordScreen({ navigation, route }) {
                   onPress={() => setShowConfirm((v) => !v)}
                 >
                   <Text style={styles.toggleText}>
-                    {showConfirm ? "Hide" : "Show"}
+                    {showConfirm ? t("hide") : t("show")}
                   </Text>
                 </Pressable>
               </View>
 
-              <Text style={styles.note}>
-                Password must be at least 8 characters and include uppercase,
-                lowercase, number, and special character.
-              </Text>
+              <Text style={styles.note}>{t("set_password_note")}</Text>
 
               <TouchableOpacity
                 style={[styles.primaryBtn, loading && styles.disabledBtn]}
@@ -142,9 +140,9 @@ export default function SetNewPasswordScreen({ navigation, route }) {
                 activeOpacity={0.9}
               >
                 {loading ? (
-                  <ActivityIndicator color="#000" />
+                  <ActivityIndicator color={COLORS.darkText} />
                 ) : (
-                  <Text style={styles.primaryText}>Update Password</Text>
+                  <Text style={styles.primaryText}>{t("set_password_update")}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -195,13 +193,13 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: BORDER,
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 14,
-    color: "#fff",
+    color: COLORS.white,
   },
 
   inputFlex: {
@@ -210,7 +208,7 @@ const styles = StyleSheet.create({
 
   toggleBtn: {
     marginLeft: 10,
-    backgroundColor: "#1A1A1A",
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 12,
@@ -244,7 +242,7 @@ const styles = StyleSheet.create({
   },
 
   primaryText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontSize: 16,
     fontWeight: "900",
   },

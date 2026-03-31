@@ -1,6 +1,30 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const BASE_URL = "http://192.168.1.211:5000";
+const authExpiredListeners = new Set();
+let authExpirationHandled = false;
+
+export function subscribeToAuthExpired(listener) {
+  authExpiredListeners.add(listener);
+
+  return () => {
+    authExpiredListeners.delete(listener);
+  };
+}
+
+async function handleAuthExpired() {
+  if (authExpirationHandled) return;
+  authExpirationHandled = true;
+
+  await AsyncStorage.removeItem("token");
+  authExpiredListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (error) {
+      console.log("Auth expiry listener error:", error?.message || error);
+    }
+  });
+}
 
 export async function apiFetch(path, options = {}) {
   const {
@@ -35,8 +59,13 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (!res.ok) {
+    if (res.status === 401 && !skipAuth) {
+      await handleAuthExpired();
+    }
+
     throw new Error(data.message || `Request failed (${res.status})`);
   }
 
+  authExpirationHandled = false;
   return data;
 }

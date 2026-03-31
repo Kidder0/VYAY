@@ -9,12 +9,16 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
 const ONBOARDING_KEY = "hasSeenOnboarding_v2";
 
 export default function OnboardingScreen({ navigation }) {
+  const { t } = useI18n();
+
   const markSeen = async () => {
     await AsyncStorage.setItem(ONBOARDING_KEY, "true");
   };
@@ -43,14 +47,12 @@ export default function OnboardingScreen({ navigation }) {
             <View style={{ flex: 1 }} />
 
             <Text style={styles.title}>
-              TRAIN HARD{"\n"}
-              <Text style={{ color: YELLOW }}>STAY STRONG</Text>
+              {t("onboarding_title_top")}
+              {"\n"}
+              <Text style={{ color: YELLOW }}>{t("onboarding_title_bottom")}</Text>
             </Text>
 
-            <Text style={styles.subtitle}>
-              Workouts, memberships, check-ins and progress — everything in one
-              powerful gym app.
-            </Text>
+            <Text style={styles.subtitle}>{t("onboarding_subtitle")}</Text>
 
             <View style={styles.buttonsWrapper}>
               <TouchableOpacity
@@ -58,7 +60,7 @@ export default function OnboardingScreen({ navigation }) {
                 activeOpacity={0.85}
                 onPress={goRegister}
               >
-                <Text style={styles.primaryText}>Get Started</Text>
+                <Text style={styles.primaryText}>{t("onboarding_get_started")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -66,11 +68,11 @@ export default function OnboardingScreen({ navigation }) {
                 activeOpacity={0.85}
                 onPress={goLogin}
               >
-                <Text style={styles.secondaryText}>I Already Have Account</Text>
+                <Text style={styles.secondaryText}>{t("onboarding_have_account")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.skipBtn} onPress={goLogin}>
-                <Text style={styles.skipText}>Skip</Text>
+                <Text style={styles.skipText}>{t("onboarding_skip")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -98,7 +100,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    color: "#FFFFFF",
+    color: COLORS.white,
     fontSize: 42,
     fontWeight: "900",
     lineHeight: 46,
@@ -127,7 +129,7 @@ const styles = StyleSheet.create({
   },
 
   primaryText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontSize: 17,
     fontWeight: "900",
   },

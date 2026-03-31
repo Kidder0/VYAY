@@ -16,14 +16,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiFetch } from "../api";
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
-const YELLOW = "#FFD700";
-const BLACK = "#0B0B0B";
-const BLACK_CARD = "#121212";
-const BORDER = "rgba(255,255,255,0.08)";
-const TEXT_MUTED = "rgba(255,255,255,0.65)";
+const YELLOW = COLORS.primary;
+const BLACK = COLORS.bgDeep;
+const BLACK_CARD = COLORS.card;
+const BORDER = COLORS.border;
+const TEXT_MUTED = COLORS.muted;
 
 export default function LoginScreen({ navigation, route }) {
+  const { t } = useI18n();
   const prefillEmail = route?.params?.prefillEmail || "";
 
   const [emailOrPhone, setEmailOrPhone] = useState(prefillEmail);
@@ -38,7 +41,7 @@ export default function LoginScreen({ navigation, route }) {
     const value = emailOrPhone.trim();
 
     if (!value || !password.trim()) {
-      Alert.alert("Missing", "Please enter email/phone and password");
+      Alert.alert(t("common_error"), t("login_subtitle"));
       return;
     }
 
@@ -61,7 +64,7 @@ export default function LoginScreen({ navigation, route }) {
         routes: [{ name: "Home" }],
       });
     } catch (error) {
-      Alert.alert("Error", error.message || "Login failed");
+      Alert.alert(t("common_error"), error.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -71,9 +74,9 @@ export default function LoginScreen({ navigation, route }) {
     try {
       await AsyncStorage.removeItem("token");
       await AsyncStorage.removeItem("hasSeenOnboarding_v2");
-      Alert.alert("Reset Done", "Close app completely and reopen.");
+      Alert.alert(t("common_success"), "Close app completely and reopen.");
     } catch (error) {
-      Alert.alert("Error", "Unable to reset app state");
+      Alert.alert(t("common_error"), "Unable to reset app state");
     }
   };
 
@@ -90,11 +93,11 @@ export default function LoginScreen({ navigation, route }) {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.card}>
-              <Text style={styles.title}>Welcome Back</Text>
-              <Text style={styles.subtitle}>Login to continue</Text>
+              <Text style={styles.title}>{t("login_title")}</Text>
+              <Text style={styles.subtitle}>{t("login_subtitle")}</Text>
 
               <TextInput
-                placeholder="Email or Phone"
+                placeholder={t("login_email_or_phone")}
                 placeholderTextColor={TEXT_MUTED}
                 style={styles.input}
                 value={emailOrPhone}
@@ -104,7 +107,7 @@ export default function LoginScreen({ navigation, route }) {
               />
 
               <TextInput
-                placeholder="Password"
+                placeholder={t("login_password")}
                 placeholderTextColor={TEXT_MUTED}
                 secureTextEntry
                 style={styles.input}
@@ -120,9 +123,9 @@ export default function LoginScreen({ navigation, route }) {
                 activeOpacity={0.9}
               >
                 {loading ? (
-                  <ActivityIndicator color="#000" />
+                  <ActivityIndicator color={COLORS.darkText} />
                 ) : (
-                  <Text style={styles.primaryText}>Login</Text>
+                  <Text style={styles.primaryText}>{t("login_button")}</Text>
                 )}
               </TouchableOpacity>
 
@@ -131,7 +134,7 @@ export default function LoginScreen({ navigation, route }) {
                 onPress={() => navigation.navigate("ResetPassword")}
                 activeOpacity={0.8}
               >
-                <Text style={styles.linkText}>Forgot Password?</Text>
+                <Text style={styles.linkText}>{t("login_forgot_password")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -139,7 +142,7 @@ export default function LoginScreen({ navigation, route }) {
                 onPress={() => navigation.navigate("Register")}
                 activeOpacity={0.8}
               >
-                <Text style={styles.secondaryText}>Create New Account</Text>
+                <Text style={styles.secondaryText}>{t("login_create_account")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -147,7 +150,7 @@ export default function LoginScreen({ navigation, route }) {
                 onPress={resetApp}
                 activeOpacity={0.8}
               >
-                <Text style={styles.resetText}>Reset Onboarding</Text>
+                <Text style={styles.resetText}>{t("login_reset_onboarding")}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -193,13 +196,13 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: COLORS.inputBg,
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 14,
     marginBottom: 14,
   },
@@ -217,7 +220,7 @@ const styles = StyleSheet.create({
   },
 
   primaryText: {
-    color: "#000",
+    color: COLORS.darkText,
     fontSize: 16,
     fontWeight: "900",
   },

@@ -9,25 +9,144 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiFetch } from "../api";
-
-const COLORS = {
-  bg: "#000000",
-  card: "#121212",
-  border: "#232323",
-  divider: "#2E2E2E",
-  primary: "#3B82F6",
-  primarySoft: "#93C5FD",
-  white: "#FFFFFF",
-  muted: "#A1A1AA",
-  red: "#EF4444",
-};
+import COLORS from "../theme/colors";
+import { useI18n } from "../i18n";
 
 const APPLE_HEALTH_KEY = "settings_apple_health_enabled";
+const LANGUAGE_KEY = "settings_language";
+const COUNTRY_KEY = "settings_country";
+
+const LANGUAGE_OPTIONS = [
+  "English",
+  "Spanish",
+  "French",
+  "Hindi",
+  "Arabic",
+];
+
+const COUNTRY_OPTIONS = [
+  "Australia",
+  "Bangladesh",
+  "Brazil",
+  "Canada",
+  "China",
+  "Egypt",
+  "France",
+  "Germany",
+  "India",
+  "Indonesia",
+  "Ireland",
+  "Italy",
+  "Japan",
+  "Kenya",
+  "Malaysia",
+  "Mexico",
+  "Nepal",
+  "Netherlands",
+  "New Zealand",
+  "Nigeria",
+  "Pakistan",
+  "Philippines",
+  "Portugal",
+  "Saudi Arabia",
+  "Singapore",
+  "South Africa",
+  "South Korea",
+  "Spain",
+  "Sri Lanka",
+  "Thailand",
+  "Turkey",
+  "United Arab Emirates",
+  "United Kingdom",
+  "United States",
+  "Vietnam",
+];
+
+const COUNTRY_NAME_BY_CODE = {
+  AU: "Australia",
+  BD: "Bangladesh",
+  BR: "Brazil",
+  CA: "Canada",
+  CN: "China",
+  EG: "Egypt",
+  FR: "France",
+  DE: "Germany",
+  IN: "India",
+  ID: "Indonesia",
+  IE: "Ireland",
+  IT: "Italy",
+  JP: "Japan",
+  KE: "Kenya",
+  MY: "Malaysia",
+  MX: "Mexico",
+  NP: "Nepal",
+  NL: "Netherlands",
+  NZ: "New Zealand",
+  NG: "Nigeria",
+  PK: "Pakistan",
+  PH: "Philippines",
+  PT: "Portugal",
+  SA: "Saudi Arabia",
+  SG: "Singapore",
+  ZA: "South Africa",
+  KR: "South Korea",
+  ES: "Spain",
+  LK: "Sri Lanka",
+  TH: "Thailand",
+  TR: "Turkey",
+  AE: "United Arab Emirates",
+  GB: "United Kingdom",
+  US: "United States",
+  VN: "Vietnam",
+};
+
+const LANGUAGE_NAME_BY_CODE = {
+  ar: "Arabic",
+  bn: "Bengali",
+  zh: "Chinese",
+  nl: "Dutch",
+  en: "English",
+  fr: "French",
+  de: "German",
+  gu: "Gujarati",
+  hi: "Hindi",
+  it: "Italian",
+  ja: "Japanese",
+  kn: "Kannada",
+  ko: "Korean",
+  ml: "Malayalam",
+  mr: "Marathi",
+  pt: "Portuguese",
+  pa: "Punjabi",
+  es: "Spanish",
+  ta: "Tamil",
+  te: "Telugu",
+  tr: "Turkish",
+  ur: "Urdu",
+  vi: "Vietnamese",
+};
+
+function getDeviceLocaleParts() {
+  const locale =
+    Intl?.DateTimeFormat?.().resolvedOptions?.().locale ||
+    "en-US";
+
+  const normalized = String(locale).replace("_", "-");
+  const [languageCode = "en", regionCode = "US"] = normalized.split("-");
+
+  return {
+    languageCode: languageCode.toLowerCase(),
+    regionCode: regionCode.toUpperCase(),
+  };
+}
 
 function SettingRow({ label, value, onPress, danger, disabled = false }) {
   return (
@@ -37,7 +156,7 @@ function SettingRow({ label, value, onPress, danger, disabled = false }) {
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
     >
-      <Text style={[styles.settingLabel, danger && { color: COLORS.red }]}>
+      <Text style={[styles.settingLabel, danger && { color: COLORS.danger }]}>
         {label}
       </Text>
 
@@ -47,7 +166,7 @@ function SettingRow({ label, value, onPress, danger, disabled = false }) {
           <Ionicons
             name="chevron-forward"
             size={20}
-            color={danger ? COLORS.red : COLORS.muted}
+            color={danger ? COLORS.danger : COLORS.muted}
           />
         ) : null}
       </View>
@@ -56,11 +175,17 @@ function SettingRow({ label, value, onPress, danger, disabled = false }) {
 }
 
 export default function SettingsScreen({ navigation }) {
+  const { t, setLanguage: applyLanguage } = useI18n();
   const [appleHealthEnabled, setAppleHealthEnabled] = useState(false);
   const [loadingAppleHealth, setLoadingAppleHealth] = useState(Platform.OS === "ios");
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const language = "English";
-  const country = "United States";
+  const [language, setLanguage] = useState("English");
+  const [country, setCountry] = useState("United States");
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerTitle, setPickerTitle] = useState("");
+  const [pickerItems, setPickerItems] = useState([]);
+  const [pickerType, setPickerType] = useState("");
+  const [searchText, setSearchText] = useState("");
   const showAppleHealth = Platform.OS === "ios";
 
   useEffect(() => {
@@ -93,6 +218,47 @@ export default function SettingsScreen({ navigation }) {
       mounted = false;
     };
   }, [showAppleHealth]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSavedPreferences = async () => {
+      try {
+        const [savedLanguage, savedCountry] = await Promise.all([
+          AsyncStorage.getItem(LANGUAGE_KEY),
+          AsyncStorage.getItem(COUNTRY_KEY),
+        ]);
+
+        const { languageCode, regionCode } = getDeviceLocaleParts();
+        const detectedLanguage = LANGUAGE_NAME_BY_CODE[languageCode];
+        const detectedCountry = COUNTRY_NAME_BY_CODE[regionCode];
+
+        if (!mounted) return;
+
+        if (savedLanguage) {
+          setLanguage(savedLanguage);
+        } else if (detectedLanguage && LANGUAGE_OPTIONS.includes(detectedLanguage)) {
+          setLanguage(detectedLanguage);
+          await applyLanguage(detectedLanguage);
+        }
+
+        if (savedCountry) {
+          setCountry(savedCountry);
+        } else if (detectedCountry && COUNTRY_OPTIONS.includes(detectedCountry)) {
+          setCountry(detectedCountry);
+          await AsyncStorage.setItem(COUNTRY_KEY, detectedCountry);
+        }
+      } catch (e) {
+        console.log("Failed to load settings preferences:", e?.message || e);
+      }
+    };
+
+    loadSavedPreferences();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const onToggleAppleHealth = async (value) => {
     try {
@@ -132,8 +298,114 @@ export default function SettingsScreen({ navigation }) {
     );
   };
 
+  const openPicker = (type) => {
+    setSearchText("");
+    setPickerType(type);
+
+    if (type === "language") {
+      setPickerTitle(t("settings_select_language"));
+      setPickerItems(LANGUAGE_OPTIONS);
+    } else {
+      setPickerTitle(t("settings_select_country"));
+      setPickerItems(COUNTRY_OPTIONS);
+    }
+
+    setPickerVisible(true);
+  };
+
+  const closePicker = () => {
+    setPickerVisible(false);
+    setPickerType("");
+    setPickerItems([]);
+    setSearchText("");
+  };
+
+  const onSelectPreference = async (value) => {
+    try {
+      if (pickerType === "language") {
+        setLanguage(value);
+        await applyLanguage(value);
+      } else if (pickerType === "country") {
+        setCountry(value);
+        await AsyncStorage.setItem(COUNTRY_KEY, value);
+      }
+
+      closePicker();
+    } catch (e) {
+      Alert.alert(t("common_error"), "Failed to save preference.");
+    }
+  };
+
+  const filteredPickerItems = pickerItems.filter((item) =>
+    item.toLowerCase().includes(searchText.trim().toLowerCase())
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <Modal
+        visible={pickerVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={closePicker}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{pickerTitle}</Text>
+              <TouchableOpacity onPress={closePicker} activeOpacity={0.85}>
+                <Ionicons name="close" size={22} color={COLORS.white} />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholder={t("common_search")}
+              placeholderTextColor={COLORS.muted}
+              style={styles.searchInput}
+            />
+
+            <FlatList
+              data={filteredPickerItems}
+              keyExtractor={(item) => item}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const selectedValue = pickerType === "language" ? language : country;
+                const isSelected = selectedValue === item;
+
+                return (
+                  <TouchableOpacity
+                    style={styles.optionRow}
+                    onPress={() => onSelectPreference(item)}
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        isSelected && styles.optionTextSelected,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+
+                    {isSelected ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color={COLORS.primary}
+                      />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>{t("settings_no_results")}</Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
       
       {/* HEADER */}
       <View style={styles.header}>
@@ -144,7 +416,7 @@ export default function SettingsScreen({ navigation }) {
           <Ionicons name="arrow-back" size={22} color={COLORS.white} />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={styles.headerTitle}>{t("settings_title")}</Text>
 
         <View style={{ width: 42 }} />
       </View>
@@ -154,10 +426,10 @@ export default function SettingsScreen({ navigation }) {
         {/* WEARABLES */}
         {showAppleHealth ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Wearables</Text>
+            <Text style={styles.sectionTitle}>{t("settings_wearables")}</Text>
 
             <View style={styles.switchRow}>
-              <Text style={styles.settingLabel}>Apple Health</Text>
+              <Text style={styles.settingLabel}>{t("settings_apple_health")}</Text>
 
               <View style={styles.switchRight}>
                 {loadingAppleHealth ? (
@@ -165,7 +437,7 @@ export default function SettingsScreen({ navigation }) {
                 ) : (
                   <>
                     <Text style={styles.settingValue}>
-                      {appleHealthEnabled ? "Enabled" : "Disabled"}
+                      {appleHealthEnabled ? t("settings_enabled") : t("settings_disabled")}
                     </Text>
 
                     <Switch
@@ -180,33 +452,41 @@ export default function SettingsScreen({ navigation }) {
             </View>
 
             <Text style={styles.helperText}>
-              Save your Apple Health sync preference on this device.
+              {t("settings_apple_health_sub")}
             </Text>
           </View>
         ) : null}
 
         {/* APP SETTINGS */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>App Settings</Text>
+          <Text style={styles.sectionTitle}>{t("settings_app")}</Text>
 
-          <SettingRow label="Language" value={language} disabled />
+          <SettingRow
+            label={t("settings_language")}
+            value={language}
+            onPress={() => openPicker("language")}
+          />
           <View style={styles.divider} />
-          <SettingRow label="Country / Region" value={country} disabled />
+          <SettingRow
+            label={t("settings_country")}
+            value={country}
+            onPress={() => openPicker("country")}
+          />
         </View>
 
         {/* ACCOUNT */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
+          <Text style={styles.sectionTitle}>{t("settings_account")}</Text>
 
           <SettingRow
-            label="Change Password"
+            label={t("settings_change_password")}
             onPress={() => navigation.navigate("ChangePassword")}
           />
 
           <View style={styles.divider} />
 
           <SettingRow
-            label={deleteLoading ? "Deleting Account..." : "Delete Account"}
+            label={deleteLoading ? t("settings_deleting_account") : t("settings_delete_account")}
             onPress={deleteLoading ? undefined : onDeleteAccount}
             danger
             disabled={deleteLoading}
@@ -252,6 +532,77 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingBottom: 40,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    justifyContent: "flex-end",
+  },
+
+  modalCard: {
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 18,
+    maxHeight: "72%",
+  },
+
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+
+  modalTitle: {
+    color: COLORS.white,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+
+  searchInput: {
+    backgroundColor: COLORS.inputBg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: COLORS.white,
+    fontSize: 14,
+    marginBottom: 14,
+  },
+
+  optionRow: {
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.bgDeep,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  optionText: {
+    color: COLORS.softWhite,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  optionTextSelected: {
+    color: COLORS.primarySoft,
+  },
+
+  emptyText: {
+    color: COLORS.muted,
+    textAlign: "center",
+    marginTop: 20,
+    fontSize: 14,
   },
 
   section: {
