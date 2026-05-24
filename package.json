@@ -16,6 +16,11 @@
     "@react-navigation/native-stack": "^7.13.0",
     "@tanstack/react-query": "^5.90.21",
     "axios": "^1.13.5",
+    "bcrypt": "^6.0.0",
+    "bwip-js": "^4.8.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
     "expo": "~54.0.33",
     "expo-auth-session": "~7.0.10",
     "expo-barcode-scanner": "^13.0.1",
@@ -24,6 +29,11 @@
     "expo-location": "~19.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "~15.0.10",
+    "jsonwebtoken": "^9.0.3",
+    "libphonenumber-js": "^1.12.37",
+    "nodemailer": "^8.0.1",
+    "pg": "^8.18.0",
+    "qrcode": "^1.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
@@ -31,7 +41,8 @@
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
-    "react-native-web": "^0.21.0"
+    "react-native-web": "^0.21.0",
+    "stripe": "^20.3.1"
   },
   "private": true
 }
