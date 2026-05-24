@@ -16,7 +16,15 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiFetch } from "../api";
+import {
+  ADMIN_TOKEN_KEY,
+  APP_MODE_ADMIN,
+  adminApiFetch,
+  apiFetch,
+  clearAdminSession,
+  clearMemberSession,
+  setActiveAppMode,
+} from "../api";
 import COLORS from "../theme/colors";
 import { useI18n } from "../i18n";
 
@@ -186,6 +194,7 @@ export default function SettingsScreen({ navigation }) {
   const [pickerItems, setPickerItems] = useState([]);
   const [pickerType, setPickerType] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [adminProfile, setAdminProfile] = useState(null);
   const showAppleHealth = Platform.OS === "ios";
 
   useEffect(() => {
@@ -260,6 +269,48 @@ export default function SettingsScreen({ navigation }) {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const loadAdminSession = async () => {
+      try {
+        const adminToken = await AsyncStorage.getItem(ADMIN_TOKEN_KEY);
+
+        if (!adminToken) {
+          if (mounted) setAdminProfile(null);
+          return;
+        }
+
+        const data = await adminApiFetch("/api/admin-auth/me");
+
+        if (mounted) {
+          setAdminProfile(data?.admin || null);
+        }
+      } catch (e) {
+        if (mounted) {
+          setAdminProfile(null);
+        }
+        console.log("Failed to load admin session:", e?.message || e);
+      }
+    };
+
+    loadAdminSession();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const adminAccessLabel = adminProfile?.is_super_admin
+    ? t("admin_role_super_admin")
+    : adminProfile?.clubs?.[0]?.role_name || t("admin_session_active");
+
+  const handleAdminLogout = async () => {
+    await clearAdminSession();
+    setAdminProfile(null);
+    Alert.alert(t("common_success"), t("admin_logged_out"));
+  };
+
   const onToggleAppleHealth = async (value) => {
     try {
       setAppleHealthEnabled(value);
@@ -285,7 +336,7 @@ export default function SettingsScreen({ navigation }) {
             try {
               setDeleteLoading(true);
               await apiFetch("/api/auth/delete-account", { method: "DELETE" });
-              await AsyncStorage.removeItem("token");
+              await clearMemberSession();
               navigation.reset({ index: 0, routes: [{ name: "Login" }] });
             } catch (e) {
               Alert.alert("Error", e?.message || "Failed");
@@ -477,6 +528,32 @@ export default function SettingsScreen({ navigation }) {
         {/* ACCOUNT */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t("settings_account")}</Text>
+
+          <SettingRow
+            label={t("admin_settings_access")}
+            value={adminProfile ? adminAccessLabel : t("admin_settings_login")}
+            onPress={async () => {
+              if (adminProfile) {
+                await setActiveAppMode(APP_MODE_ADMIN);
+                return;
+              }
+
+              navigation.navigate("AdminLogin");
+            }}
+          />
+
+          <View style={styles.divider} />
+
+          {adminProfile ? (
+            <>
+              <SettingRow
+                label={t("admin_settings_logout")}
+                onPress={handleAdminLogout}
+              />
+
+              <View style={styles.divider} />
+            </>
+          ) : null}
 
           <SettingRow
             label={t("settings_change_password")}

@@ -8,17 +8,39 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 const authenticateToken = require("../middleware/authMiddleware");
+const { normalizeRole } = require("../middleware/roleMiddleware");
 const { assertNotDisposableEmail } = require("./services/emailGuard");
 const { normalizeToE164 } = require("./services/phoneGuard");
 
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 
-// Utility: Strong password validator
+const PASSWORD_POLICY_MESSAGE =
+  "Password must be at least 8 characters long, include letters and numbers, and avoid common passwords or three identical characters in a row.";
+const NEW_PASSWORD_POLICY_MESSAGE =
+  "New password must be at least 8 characters long, include letters and numbers, and avoid common passwords or three identical characters in a row.";
+const COMMON_PASSWORDS = new Set([
+  "12345678",
+  "123456789",
+  "11111111",
+  "abc12345",
+  "password",
+  "password1",
+  "password12",
+  "password123",
+  "qwerty123",
+]);
+
+// Utility: Apple-style password validator
 function isStrongPassword(password) {
-  const strongRegex =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-  return strongRegex.test(password);
+  const value = String(password || "");
+
+  if (value.length < 8) return false;
+  if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) return false;
+  if (/(.)\1\1/.test(value)) return false;
+  if (COMMON_PASSWORDS.has(value.toLowerCase())) return false;
+
+  return true;
 }
 
 // OTP helpers
@@ -59,8 +81,7 @@ router.post("/register", async (req, res) => {
     // Strong password
     if (!isStrongPassword(password)) {
       return res.status(400).json({
-        message:
-          "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+        message: PASSWORD_POLICY_MESSAGE,
       });
     }
 
@@ -80,9 +101,9 @@ router.post("/register", async (req, res) => {
 
     // Create user in PENDING_EMAIL until verified
     const newUser = await pool.query(
-      `INSERT INTO users (name, email, phone_number, password_hash, email_verified, status)
-       VALUES ($1, $2, $3, $4, FALSE, 'PENDING_EMAIL')
-       RETURNING id, name, email, phone_number, email_verified, status`,
+      `INSERT INTO users (name, email, phone_number, password_hash, email_verified, status, role)
+       VALUES ($1, $2, $3, $4, FALSE, 'PENDING_EMAIL', 'member')
+       RETURNING id, name, email, phone_number, email_verified, status, role`,
       [name, cleanEmail, phoneE164, hashedPassword]
     );
 
@@ -396,8 +417,7 @@ router.post("/reset-password", async (req, res) => {
 
     if (!isStrongPassword(new_password)) {
       return res.status(400).json({
-        message:
-          "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+        message: PASSWORD_POLICY_MESSAGE,
       });
     }
 
@@ -569,7 +589,9 @@ router.post("/login", async (req, res) => {
       user.id,
     ]);
 
-    const token = jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, {
+    const normalizedRole = normalizeRole(user.role);
+
+    const token = jwt.sign({ userId: user.id, role: normalizedRole }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
 
@@ -581,6 +603,7 @@ router.post("/login", async (req, res) => {
         name: user.name,
         email: user.email,
         phone_number: user.phone_number,
+        role: normalizedRole,
       },
     });
   } catch (err) {
@@ -595,7 +618,7 @@ router.get("/profile", authenticateToken, async (req, res) => {
     const userId = req.user.userId;
 
     const result = await pool.query(
-      `SELECT id, name, email, phone_number, language, country_region
+      `SELECT id, name, email, phone_number, language, country_region, role
        FROM users
        WHERE id = $1`,
       [userId]
@@ -603,7 +626,12 @@ router.get("/profile", authenticateToken, async (req, res) => {
 
     if (result.rows.length === 0) return res.status(404).json({ message: "User not found" });
 
-    res.status(200).json({ profile: result.rows[0] });
+    res.status(200).json({
+      profile: {
+        ...result.rows[0],
+        role: normalizeRole(result.rows[0]?.role),
+      },
+    });
   } catch (err) {
     console.error("Profile fetch error:", err);
     res.status(500).json({ message: "Server error" });
@@ -613,7 +641,8 @@ router.get("/profile", authenticateToken, async (req, res) => {
 // ✅ PROFILE UPDATE ROUTE (name, phone ONLY)
 router.put("/update-profile", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
-  const { name, phone_number } = req.body;
+  const body = req.body || {};
+  const { name, phone_number } = body;
 
   try {
     const currentRes = await pool.query("SELECT id, phone_number, country_region FROM users WHERE id = $1", [
@@ -626,7 +655,12 @@ router.put("/update-profile", authenticateToken, async (req, res) => {
 
     const current = currentRes.rows[0];
 
-    const newName = name ? String(name).trim() : null;
+    const hasNameUpdate = Object.prototype.hasOwnProperty.call(body, "name");
+    const newName = hasNameUpdate ? String(name || "").trim() : null;
+
+    if (hasNameUpdate && !newName) {
+      return res.status(400).json({ message: "Name is required" });
+    }
 
     let newPhoneE164 = null;
     if (phone_number) {
@@ -809,8 +843,7 @@ router.put("/change-password", authenticateToken, async (req, res) => {
 
     if (!isStrongPassword(new_password)) {
       return res.status(400).json({
-        message:
-          "New password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+        message: NEW_PASSWORD_POLICY_MESSAGE,
       });
     }
 

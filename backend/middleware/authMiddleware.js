@@ -1,22 +1,26 @@
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
+const { normalizeRole } = require("./roleMiddleware");
 
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
+  const authHeader = req.headers["authorization"];
 
   // Expect: Authorization: Bearer <token>
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ message: 'Access token missing' });
+    return res.status(401).json({ message: "Access token missing" });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { userId: ... }
+    req.user = {
+      ...decoded,
+      role: normalizeRole(decoded?.role),
+    };
     next();
   } catch (err) {
-    console.error('JWT Error:', err);
-    res.status(403).json({ message: 'Invalid or expired token' });
+    console.error("JWT Error:", err);
+    res.status(403).json({ message: "Invalid or expired token" });
   }
 }
 

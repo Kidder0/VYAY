@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import * as Haptics from "expo-haptics";
 import {
   View,
@@ -6,8 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Dimensions,
-  FlatList,
   ActivityIndicator,
   StatusBar,
 } from "react-native";
@@ -17,10 +15,6 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../api";
 import COLORS from "../theme/colors";
 import { useI18n } from "../i18n";
-
-const { width } = Dimensions.get("window");
-const SLIDE_WIDTH = width - 40;
-const AUTO_SLIDE_MS = 3500;
 
 function normalizeMembershipName(value) {
   const raw = String(value || "").trim().toLowerCase();
@@ -34,24 +28,32 @@ function normalizeMembershipName(value) {
   return value;
 }
 
-function buildSlides(hasMembership, membershipPlan, t) {
+function getProgressValue(hasMembership, membershipPlan, checkinCount) {
+  if (!hasMembership) return 32;
+  if (membershipPlan === "Dominate") return Math.min(94, 60 + checkinCount * 6);
+  return Math.min(84, 48 + checkinCount * 5);
+}
+
+function buildWorkoutCards(hasMembership, membershipPlan, t) {
   if (!hasMembership) {
     return [
       {
-        id: "no-plan-build",
-        eyebrow: t("home_start_here"),
-        title: t("home_build_title"),
-        text: t("home_build_text"),
-        cta: t("home_explore_build"),
+        id: "starter",
+        tag: "Start Smart",
+        title: "Build Foundations",
+        subtitle: "Low-impact strength and consistency first.",
+        metaOne: "3 sessions",
+        metaTwo: "20-30 min",
         icon: "barbell-outline",
       },
       {
-        id: "no-plan-dominate",
-        eyebrow: t("home_level_up"),
-        title: "Dominate",
-        text: t("home_dominate_text"),
-        cta: t("home_explore_dominate"),
-        icon: "flash-outline",
+        id: "mobility",
+        tag: "Recovery",
+        title: "Stretch & Reset",
+        subtitle: "Mobility flow to keep your body loose and ready.",
+        metaOne: "Daily",
+        metaTwo: "12 min",
+        icon: "body-outline",
       },
     ];
   }
@@ -59,90 +61,52 @@ function buildSlides(hasMembership, membershipPlan, t) {
   if (membershipPlan === "Build") {
     return [
       {
-        id: "build-upgrade-1",
-        eyebrow: t("home_upgrade"),
-        title: "Dominate",
-        text: t("home_upgrade_text"),
-        cta: t("home_upgrade_now"),
-        icon: "arrow-up-outline",
+        id: "upper",
+        tag: "Upper Body",
+        title: "Push Strength",
+        subtitle: "Chest, shoulders, and triceps with clean form.",
+        metaOne: "4 moves",
+        metaTwo: "35 min",
+        icon: "fitness-outline",
       },
       {
-        id: "build-upgrade-2",
-        eyebrow: t("home_next_level"),
-        title: t("home_train_bigger"),
-        text: t("home_train_bigger_text"),
-        cta: t("home_see_benefits"),
-        icon: "trending-up-outline",
+        id: "conditioning",
+        tag: "Conditioning",
+        title: "Finish Strong",
+        subtitle: "Short treadmill and bike intervals after lifting.",
+        metaOne: "2 rounds",
+        metaTwo: "15 min",
+        icon: "speedometer-outline",
       },
     ];
   }
 
   return [
     {
-      id: "dominate-product-1",
-      eyebrow: t("home_recovery"),
-      title: t("home_protein"),
-      text: t("home_protein_text"),
-      cta: t("home_view_products"),
+      id: "performance",
+      tag: "Performance",
+      title: "Athletic Power",
+      subtitle: "Explosive lower body work with stronger recovery pacing.",
+      metaOne: "5 blocks",
+      metaTwo: "45 min",
+      icon: "flash-outline",
+    },
+    {
+      id: "nutrition",
+      tag: "Fuel",
+      title: "Recovery Focus",
+      subtitle: "Pair heavy training days with protein and hydration goals.",
+      metaOne: "120g protein",
+      metaTwo: "2.5L water",
       icon: "nutrition-outline",
-    },
-    {
-      id: "dominate-product-2",
-      eyebrow: t("home_on_the_go"),
-      title: t("home_bars_snacks"),
-      text: t("home_bars_text"),
-      cta: t("home_shop_now"),
-      icon: "cafe-outline",
-    },
-    {
-      id: "dominate-product-3",
-      eyebrow: t("home_essentials"),
-      title: t("home_gym_gear"),
-      text: t("home_gym_gear_text"),
-      cta: t("home_browse_gear"),
-      icon: "shirt-outline",
     },
   ];
 }
 
-function getHeroContent(hasMembership, membershipPlan, t) {
-  if (!hasMembership) {
-    return {
-      badge: t("home_get_started_badge"),
-      titleTop: t("home_welcome_to"),
-      titleMain: "VYAY",
-      subtitle1: t("home_tagline"),
-      subtitle2: t("home_join_today"),
-      button: t("home_join_now"),
-    };
-  }
-
-  if (membershipPlan === "Build") {
-    return {
-      badge: t("home_upgrade_badge"),
-      titleTop: t("home_move_up"),
-      titleMain: "DOMINATE",
-      subtitle1: t("home_more_access"),
-      subtitle2: t("home_upgrade_for_more"),
-      button: t("home_explore_dominate"),
-    };
-  }
-
-  return {
-    badge: t("home_premium_badge"),
-    titleTop: t("home_ready_for"),
-    titleMain: t("home_more"),
-    subtitle1: t("home_keep_momentum"),
-    subtitle2: t("home_premium_explore"),
-    button: t("home_view_products"),
-  };
-}
-
 export default function HomeScreen({ navigation }) {
   const { t } = useI18n();
-  const flatListRef = useRef(null);
-  const autoSlideRef = useRef(null);
-  const [activeSlide, setActiveSlide] = useState(0);
+  const [activeSegment, setActiveSegment] = useState("overview");
+  const [activeFilter, setActiveFilter] = useState("all");
 
   const goAccount = useCallback(() => {
     navigation.navigate("Account");
@@ -165,7 +129,17 @@ export default function HomeScreen({ navigation }) {
     staleTime: 15000,
   });
 
+  const historyQuery = useQuery({
+    queryKey: ["home-history"],
+    queryFn: () => apiFetch("/api/checkin/history"),
+    staleTime: 15000,
+    refetchOnMount: true,
+  });
+
   const membershipData = membershipQuery.data || {};
+  const history = Array.isArray(historyQuery.data?.checkins)
+    ? historyQuery.data.checkins
+    : [];
   const hasMembership =
     !membershipData?.show_plans && !!membershipData?.membership_code;
 
@@ -175,186 +149,59 @@ export default function HomeScreen({ navigation }) {
       ""
   );
 
-  const heroContent = useMemo(
-    () => getHeroContent(hasMembership, membershipPlan, t),
+  const checkinCount = history.length;
+  const progressValue = getProgressValue(
+    hasMembership,
+    membershipPlan,
+    checkinCount
+  );
+  const expiryText = membershipData?.membership_expiry
+    ? new Date(membershipData.membership_expiry).toLocaleDateString()
+    : "Choose a plan";
+
+  const workoutCards = useMemo(
+    () => buildWorkoutCards(hasMembership, membershipPlan, t),
     [hasMembership, membershipPlan, t]
   );
 
-  const slides = useMemo(
-    () => buildSlides(hasMembership, membershipPlan, t),
-    [hasMembership, membershipPlan, t]
-  );
+  const statCards = [
+    {
+      id: "progress",
+      label: "Momentum",
+      value: `${progressValue}%`,
+      sub: hasMembership ? "Consistency score" : "Join to unlock",
+      icon: "flame-outline",
+      highlight: true,
+    },
+    {
+      id: "plan",
+      label: "Plan",
+      value: membershipPlan || "Guest",
+      sub: hasMembership ? "Membership active" : "No active plan",
+      icon: "wallet-outline",
+    },
+    {
+      id: "visits",
+      label: "Visits",
+      value: `${checkinCount}`,
+      sub: "Recent check-ins",
+      icon: "footsteps-outline",
+    },
+    {
+      id: "expiry",
+      label: "Valid Until",
+      value: expiryText,
+      sub: hasMembership ? "Membership expiry" : "Tap to explore",
+      icon: "calendar-outline",
+    },
+  ];
 
-  useEffect(() => {
-    setActiveSlide(0);
-
-    const timer = setTimeout(() => {
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-    }, 50);
-
-    return () => clearTimeout(timer);
-  }, [slides.length]);
-
-  useEffect(() => {
-    if (!slides.length) return;
-
-    if (autoSlideRef.current) clearInterval(autoSlideRef.current);
-
-    autoSlideRef.current = setInterval(() => {
-      setActiveSlide((prev) => {
-        const next = (prev + 1) % slides.length;
-        flatListRef.current?.scrollToOffset({
-          offset: next * SLIDE_WIDTH,
-          animated: true,
-        });
-        return next;
-      });
-    }, AUTO_SLIDE_MS);
-
-    return () => {
-      if (autoSlideRef.current) clearInterval(autoSlideRef.current);
-    };
-  }, [slides]);
-
-  const onMomentumScrollEnd = useCallback((event) => {
-    const offsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offsetX / SLIDE_WIDTH);
-    setActiveSlide(index);
-  }, []);
-
-  const handleHeroPress = useCallback(() => {
-    if (!hasMembership) {
-      goCheckin();
-      return;
-    }
-
-    if (membershipPlan === "Build") {
-      goCheckin();
-      return;
-    }
-
-    goAccount();
-  }, [hasMembership, membershipPlan, goCheckin, goAccount]);
-
-  const handleSlidePress = useCallback(() => {
-    if (!hasMembership) {
-      goCheckin();
-      return;
-    }
-
-    if (membershipPlan === "Build") {
-      goCheckin();
-      return;
-    }
-
-    goAccount();
-  }, [hasMembership, membershipPlan, goCheckin, goAccount]);
-
-  const sectionTitle = !hasMembership
-    ? t("home_membership_plans")
-    : membershipPlan === "Build"
-    ? t("home_upgrade_recommendations")
-    : t("home_recommended");
-
-  const renderHero = () => {
-    return (
-      <View style={styles.heroCard}>
-        <View style={styles.heroTopRow}>
-          <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeText}>{heroContent.badge}</Text>
-          </View>
-
-          {hasMembership && membershipPlan ? (
-            <View style={styles.heroMemberChip}>
-              <Text style={styles.heroMemberChipText}>{membershipPlan}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <Text style={styles.heroTitleTop}>{heroContent.titleTop}</Text>
-        <Text style={styles.heroTitleMain}>{heroContent.titleMain}</Text>
-
-        <Text style={styles.heroSubtitleMain}>{heroContent.subtitle1}</Text>
-        <Text style={styles.heroSubtitleAccent}>{heroContent.subtitle2}</Text>
-
-        <TouchableOpacity
-          style={styles.heroButton}
-          onPress={handleHeroPress}
-          activeOpacity={0.9}
-        >
-          <Text style={styles.heroButtonText}>{heroContent.button}</Text>
-          <Ionicons name="arrow-forward" size={18} color={COLORS.white} />
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderQuickActions = () => {
-    return (
-      <View style={styles.panelCard}>
-        <Text style={styles.sectionTitle}>{t("home_quick_actions")}</Text>
-        <Text style={styles.sectionSubtitle}>
-          {t("home_quick_sub")}
-        </Text>
-
-        <TouchableOpacity
-          style={styles.primaryAction}
-          onPress={goCheckin}
-          activeOpacity={0.92}
-        >
-          <View style={styles.primaryActionLeft}>
-            <View style={styles.primaryActionIconWrap}>
-              <MaterialCommunityIcons
-                name="qrcode-scan"
-                size={24}
-                color={COLORS.primary}
-              />
-            </View>
-
-            <View style={styles.primaryActionTextWrap}>
-              <Text style={styles.primaryActionTitle}>{t("home_checkin")}</Text>
-              <Text style={styles.primaryActionSubtitle}>
-                {t("home_checkin_sub")}
-              </Text>
-            </View>
-          </View>
-
-          <Ionicons name="chevron-forward" size={22} color={COLORS.white} />
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderSlide = ({ item }) => {
-    return (
-      <TouchableOpacity
-        activeOpacity={0.94}
-        onPress={handleSlidePress}
-        style={styles.slideCard}
-      >
-        <View style={styles.slideTopRow}>
-          <Text style={styles.slideEyebrow}>{item.eyebrow}</Text>
-
-          <View style={styles.slideIconWrap}>
-            <Ionicons name={item.icon} size={18} color={COLORS.primary} />
-          </View>
-        </View>
-
-        <View>
-          <Text style={styles.slideTitle}>{item.title}</Text>
-          <Text style={styles.slideText}>{item.text}</Text>
-        </View>
-
-        <View style={styles.slideFooter}>
-          <Text style={styles.slideCtaText}>{item.cta}</Text>
-
-          <View style={styles.arrowCircle}>
-            <Ionicons name="arrow-forward" size={18} color={COLORS.white} />
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const filterChips = [
+    { id: "all", label: "All Types" },
+    { id: "strength", label: "Strength" },
+    { id: "recovery", label: "Recovery" },
+    { id: "access", label: "Access" },
+  ];
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -364,102 +211,269 @@ export default function HomeScreen({ navigation }) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.topRow}>
-            <View style={styles.topTextWrap}>
-              <Text style={styles.welcomeText}>{t("home_welcome")}</Text>
-              <Text style={styles.pageTitle}>VYAY</Text>
-              <Text style={styles.pageSubtitle}>
-                {t("home_tagline")}
-              </Text>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              style={styles.avatarButton}
+              onPress={goAccount}
+              activeOpacity={0.9}
+            >
+              <Ionicons name="person-outline" size={20} color={COLORS.softWhite} />
+            </TouchableOpacity>
 
-              {hasMembership && membershipPlan ? (
-                <View style={styles.planPill}>
-                  <View style={styles.planDot} />
-                  <Text style={styles.planPillText}>{t("home_plan_member", { plan: membershipPlan })}</Text>
-                </View>
-              ) : null}
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>Progress</Text>
+              <Text style={styles.headerSubtitle}>{t("home_tagline")}</Text>
             </View>
 
             <TouchableOpacity
-              style={styles.profileBtn}
-              onPress={goAccount}
-              activeOpacity={0.88}
+              style={styles.menuButton}
+              onPress={goMawab}
+              activeOpacity={0.9}
             >
-              <Ionicons name="person-outline" size={22} color={COLORS.white} />
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={20}
+                color={COLORS.softWhite}
+              />
             </TouchableOpacity>
           </View>
 
-          {renderHero()}
+          <View style={styles.segmentWrap}>
+            <TouchableOpacity
+              style={[
+                styles.segmentButton,
+                activeSegment === "overview" && styles.segmentButtonActive,
+              ]}
+              activeOpacity={0.9}
+              onPress={() => setActiveSegment("overview")}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  activeSegment === "overview" && styles.segmentTextActive,
+                ]}
+              >
+                Daily
+              </Text>
+            </TouchableOpacity>
 
-          {membershipQuery.isLoading ? (
+            <TouchableOpacity
+              style={[
+                styles.segmentButton,
+                activeSegment === "membership" && styles.segmentButtonActive,
+              ]}
+              activeOpacity={0.9}
+              onPress={() => setActiveSegment("membership")}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  activeSegment === "membership" && styles.segmentTextActive,
+                ]}
+              >
+                Membership
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.progressPanel}>
+            <View style={styles.progressPanelLeft}>
+              <View style={styles.progressRingOuter}>
+                <View style={styles.progressRingInner}>
+                  <Text style={styles.progressValue}>{progressValue}%</Text>
+                </View>
+              </View>
+
+              <Text style={styles.progressLabel}>Average</Text>
+              <Text style={styles.progressMeta}>
+                {hasMembership ? "Strong weekly rhythm" : "Get started today"}
+              </Text>
+            </View>
+
+            <View style={styles.metricsGrid}>
+              {statCards.map((card) => (
+                <TouchableOpacity
+                  key={card.id}
+                  style={[
+                    styles.metricCard,
+                    card.highlight && styles.metricCardHighlight,
+                  ]}
+                  activeOpacity={0.92}
+                  onPress={card.id === "visits" ? () => navigation.navigate("CheckinHistory") : goCheckin}
+                >
+                  <View style={styles.metricTopRow}>
+                    <Ionicons
+                      name={card.icon}
+                      size={16}
+                      color={card.highlight ? COLORS.darkText : COLORS.primarySoft}
+                    />
+                    <Text
+                      style={[
+                        styles.metricLabel,
+                        card.highlight && styles.metricLabelHighlight,
+                      ]}
+                    >
+                      {card.label}
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.metricValue,
+                      card.highlight && styles.metricValueHighlight,
+                    ]}
+                  >
+                    {card.value}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.metricSub,
+                      card.highlight && styles.metricSubHighlight,
+                    ]}
+                  >
+                    {card.sub}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.quickCheckinCard}>
+            <View>
+              <Text style={styles.quickCheckinEyebrow}>{t("home_quick_actions")}</Text>
+              <Text style={styles.quickCheckinTitle}>Train with more intention.</Text>
+              <Text style={styles.quickCheckinSub}>
+                Open your barcode fast and keep your club access ready.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.quickCheckinButton}
+              activeOpacity={0.92}
+              onPress={goCheckin}
+            >
+              <Text style={styles.quickCheckinButtonText}>{t("home_checkin")}</Text>
+              <Ionicons name="arrow-forward" size={18} color={COLORS.darkText} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Find your workout</Text>
+            <Text style={styles.sectionSubtitle}>
+              Personalized ideas shaped around your membership flow.
+            </Text>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            {filterChips.map((chip) => (
+              <TouchableOpacity
+                key={chip.id}
+                style={[
+                  styles.filterChip,
+                  activeFilter === chip.id && styles.filterChipActive,
+                ]}
+                activeOpacity={0.9}
+                onPress={() => setActiveFilter(chip.id)}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    activeFilter === chip.id && styles.filterChipTextActive,
+                  ]}
+                >
+                  {chip.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {membershipQuery.isLoading || historyQuery.isLoading ? (
             <View style={styles.loadingCard}>
               <ActivityIndicator size="small" color={COLORS.primary} />
               <Text style={styles.loadingText}>{t("home_loading_membership")}</Text>
             </View>
           ) : null}
 
-          {renderQuickActions()}
+          {workoutCards.map((card) => (
+            <TouchableOpacity
+              key={card.id}
+              style={styles.workoutCard}
+              activeOpacity={0.95}
+              onPress={goCheckin}
+            >
+              <View style={styles.workoutCardContent}>
+                <View style={styles.workoutTextWrap}>
+                  <View style={styles.workoutTag}>
+                    <Text style={styles.workoutTagText}>{card.tag}</Text>
+                  </View>
 
-          <View style={styles.sectionWrap}>
-            <Text style={styles.sectionTitle}>{sectionTitle}</Text>
-            <Text style={styles.sectionSubtitle}>
-              {t("home_curated")}
-            </Text>
+                  <Text style={styles.workoutTitle}>{card.title}</Text>
+                  <Text style={styles.workoutSubtitle}>{card.subtitle}</Text>
 
-            <FlatList
-              ref={flatListRef}
-              data={slides}
-              keyExtractor={(item) => item.id}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={onMomentumScrollEnd}
-              renderItem={renderSlide}
-              snapToInterval={SLIDE_WIDTH}
-              decelerationRate="fast"
-              bounces={false}
-              getItemLayout={(_, index) => ({
-                length: SLIDE_WIDTH,
-                offset: SLIDE_WIDTH * index,
-                index,
-              })}
-            />
+                  <View style={styles.workoutMetaRow}>
+                    <View style={styles.workoutMetaItem}>
+                      <Ionicons
+                        name="time-outline"
+                        size={13}
+                        color={COLORS.muted}
+                      />
+                      <Text style={styles.workoutMetaText}>{card.metaOne}</Text>
+                    </View>
 
-            <View style={styles.dotsRow}>
-              {slides.map((slide, index) => (
-                <View
-                  key={slide.id}
-                  style={[
-                    styles.dot,
-                    index === activeSlide ? styles.dotActive : styles.dotInactive,
-                  ]}
-                />
-              ))}
-            </View>
-          </View>
+                    <View style={styles.workoutMetaItem}>
+                      <Ionicons
+                        name="pulse-outline"
+                        size={13}
+                        color={COLORS.muted}
+                      />
+                      <Text style={styles.workoutMetaText}>{card.metaTwo}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.workoutVisual}>
+                  <View style={styles.workoutIconCircle}>
+                    <Ionicons name={card.icon} size={28} color={COLORS.darkText} />
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
 
         <View style={styles.bottomBar}>
-          <TouchableOpacity style={styles.homeNavButton} activeOpacity={0.95}>
-            <View style={styles.homeNavIconWrap}>
-              <Ionicons name="home" size={22} color={COLORS.white} />
+          <TouchableOpacity style={styles.navButton} activeOpacity={0.95}>
+            <View style={styles.navIconWrap}>
+              <Ionicons name="home" size={20} color={COLORS.darkText} />
             </View>
-            <Text style={styles.homeNavText}>{t("home_bottom_home")}</Text>
+            <Text style={styles.navText}>{t("home_bottom_home")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.homeNavButton}
+            style={styles.centerActionButton}
+            activeOpacity={0.95}
+            onPress={goCheckin}
+          >
+            <Ionicons name="scan-outline" size={22} color={COLORS.darkText} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.navButton}
             activeOpacity={0.95}
             onPress={goMawab}
           >
-            <View style={[styles.homeNavIconWrap, styles.secondaryNavIconWrap]}>
+            <View style={[styles.navIconWrap, styles.navIconWrapMuted]}>
               <MaterialCommunityIcons
                 name="robot-outline"
-                size={22}
+                size={20}
                 color={COLORS.softWhite}
               />
             </View>
-            <Text style={styles.homeNavText}>{t("home_bottom_mawab")}</Text>
+            <Text style={styles.navText}>{t("home_bottom_mawab")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -478,363 +492,400 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 128,
+    paddingTop: 10,
+    paddingBottom: 140,
   },
-
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-  },
-  topTextWrap: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  welcomeText: {
-    color: COLORS.muted,
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
-  pageTitle: {
-    color: COLORS.white,
-    fontSize: 34,
-    fontWeight: "900",
-    lineHeight: 38,
-    letterSpacing: 0.4,
-  },
-  pageSubtitle: {
-    color: COLORS.softWhite,
-    fontSize: 15,
-    fontWeight: "500",
-    marginTop: 8,
-  },
-  planPill: {
-    alignSelf: "flex-start",
-    marginTop: 14,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.borderSoft,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
   },
-  planDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: COLORS.success,
-    marginRight: 8,
+  avatarButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  planPillText: {
+  menuButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCenter: {
+    alignItems: "center",
+  },
+  headerTitle: {
     color: COLORS.white,
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  headerSubtitle: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  segmentWrap: {
+    flexDirection: "row",
+    alignSelf: "center",
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 4,
+    marginBottom: 18,
+  },
+  segmentButton: {
+    paddingHorizontal: 30,
+    paddingVertical: 11,
+    borderRadius: 14,
+  },
+  segmentButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  segmentText: {
+    color: COLORS.muted,
     fontSize: 13,
     fontWeight: "700",
   },
-  profileBtn: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  segmentTextActive: {
+    color: COLORS.darkText,
   },
-
-  heroCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 22,
-    paddingVertical: 24,
-    marginBottom: 22,
-  },
-  heroTopRow: {
+  progressPanel: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 18,
-  },
-  heroBadge: {
-    backgroundColor: "rgba(59,130,246,0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(59,130,246,0.35)",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-  },
-  heroBadgeText: {
-    color: COLORS.primarySoft,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.9,
-  },
-  heroMemberChip: {
-    backgroundColor: COLORS.bgDeep,
+    backgroundColor: COLORS.cardSoft,
+    borderRadius: 30,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
+    padding: 18,
+    marginBottom: 20,
   },
-  heroMemberChipText: {
+  progressPanelLeft: {
+    width: 112,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingRight: 12,
+  },
+  progressRingOuter: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+  progressRingInner: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: COLORS.bgDeep,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  progressValue: {
     color: COLORS.white,
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 19,
+    fontWeight: "900",
   },
-  heroTitleTop: {
+  progressLabel: {
+    color: COLORS.softWhite,
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 10,
+  },
+  progressMeta: {
     color: COLORS.muted,
-    fontSize: 14,
-    fontWeight: "800",
-    letterSpacing: 1,
+    fontSize: 11,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  metricsGrid: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  metricCard: {
+    width: "47.5%",
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+  },
+  metricCardHighlight: {
+    backgroundColor: COLORS.primarySoft,
+    borderColor: COLORS.primarySoft,
+  },
+  metricTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     marginBottom: 8,
   },
-  heroTitleMain: {
-    color: COLORS.white,
-    fontSize: 40,
-    fontWeight: "900",
-    lineHeight: 44,
-    marginBottom: 12,
-  },
-  heroSubtitleMain: {
-    color: COLORS.white,
-    fontSize: 18,
+  metricLabel: {
+    color: COLORS.muted,
+    fontSize: 11,
     fontWeight: "700",
+  },
+  metricLabelHighlight: {
+    color: COLORS.darkText,
+  },
+  metricValue: {
+    color: COLORS.white,
+    fontSize: 19,
+    fontWeight: "900",
     marginBottom: 6,
   },
-  heroSubtitleAccent: {
+  metricValueHighlight: {
+    color: COLORS.darkText,
+  },
+  metricSub: {
     color: COLORS.muted,
-    fontSize: 15,
-    fontWeight: "500",
-    marginBottom: 20,
-    lineHeight: 22,
+    fontSize: 11,
+    lineHeight: 15,
   },
-  heroButton: {
-    minHeight: 56,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingHorizontal: 20,
+  metricSubHighlight: {
+    color: "#473A14",
   },
-  heroButtonText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-
-  loadingCard: {
-    marginBottom: 22,
+  quickCheckinCard: {
     backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  loadingText: {
-    color: COLORS.softWhite,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-
-  panelCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 24,
+    borderRadius: 26,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 20,
     marginBottom: 22,
   },
-
-  sectionWrap: {
-    marginBottom: 24,
+  quickCheckinEyebrow: {
+    color: COLORS.primarySoft,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  quickCheckinTitle: {
+    color: COLORS.white,
+    fontSize: 30,
+    fontWeight: "900",
+    lineHeight: 34,
+    maxWidth: "88%",
+  },
+  quickCheckinSub: {
+    color: COLORS.muted,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 10,
+    maxWidth: "92%",
+  },
+  quickCheckinButton: {
+    marginTop: 18,
+    minHeight: 54,
+    borderRadius: 17,
+    backgroundColor: COLORS.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  quickCheckinButtonText: {
+    color: COLORS.darkText,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  sectionHeader: {
+    marginBottom: 14,
   },
   sectionTitle: {
     color: COLORS.white,
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: "900",
-    marginBottom: 6,
   },
   sectionSubtitle: {
     color: COLORS.muted,
     fontSize: 14,
     lineHeight: 21,
-    marginBottom: 14,
+    marginTop: 6,
+    maxWidth: "90%",
   },
-
-  primaryAction: {
-    minHeight: 82,
-    borderRadius: 22,
-    backgroundColor: COLORS.bgDeep,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  filterRow: {
+    paddingBottom: 8,
+    gap: 10,
+  },
+  filterChip: {
     paddingHorizontal: 16,
-  },
-  primaryActionLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  primaryActionIconWrap: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    backgroundColor: "rgba(59,130,246,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-  },
-  primaryActionTextWrap: {
-    flex: 1,
-  },
-  primaryActionTitle: {
-    color: COLORS.white,
-    fontSize: 17,
-    fontWeight: "800",
-    marginBottom: 3,
-  },
-  primaryActionSubtitle: {
-    color: COLORS.muted,
-    fontSize: 13,
-    fontWeight: "500",
-  },
-
-  slideCard: {
-    width: SLIDE_WIDTH,
-    minHeight: 210,
-    borderRadius: 24,
-    padding: 22,
-    justifyContent: "space-between",
-    backgroundColor: COLORS.cardSoft,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  slideTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  filterChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
-  slideEyebrow: {
-    color: COLORS.primarySoft,
+  filterChipText: {
+    color: COLORS.softWhite,
     fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  slideIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.bgDeep,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  slideTitle: {
-    color: COLORS.white,
-    fontSize: 26,
-    fontWeight: "900",
-    marginTop: 16,
-    marginBottom: 10,
-  },
-  slideText: {
-    color: COLORS.muted,
-    fontSize: 15,
-    lineHeight: 22,
-    maxWidth: "95%",
-  },
-  slideFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 18,
-  },
-  slideCtaText: {
-    color: COLORS.white,
-    fontSize: 14,
     fontWeight: "700",
   },
-  arrowCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
+  filterChipTextActive: {
+    color: COLORS.darkText,
   },
-
-  dotsRow: {
+  loadingCard: {
+    marginTop: 8,
+    marginBottom: 16,
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    marginTop: 16,
+    gap: 10,
   },
-  dot: {
-    height: 8,
+  loadingText: {
+    color: COLORS.softWhite,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  workoutCard: {
+    backgroundColor: COLORS.cardSoft,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 18,
+    marginBottom: 16,
+  },
+  workoutCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  workoutTextWrap: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  workoutTag: {
+    alignSelf: "flex-start",
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     borderRadius: 999,
-    marginHorizontal: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 12,
   },
-  dotActive: {
-    width: 24,
+  workoutTagText: {
+    color: COLORS.primarySoft,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  workoutTitle: {
+    color: COLORS.white,
+    fontSize: 22,
+    fontWeight: "900",
+    marginBottom: 8,
+  },
+  workoutSubtitle: {
+    color: COLORS.muted,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  workoutMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 14,
+  },
+  workoutMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  workoutMetaText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  workoutVisual: {
+    width: 96,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workoutIconCircle: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
     backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  dotInactive: {
-    width: 8,
-    backgroundColor: "#3A3A3A",
-  },
-
   bottomBar: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    left: 18,
+    right: 18,
+    bottom: 12,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.bgDeep,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 10,
-    paddingBottom: 18,
-    gap: 28,
+    justifyContent: "space-between",
+    backgroundColor: "rgba(18, 20, 15, 0.95)",
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
   },
-  homeNavButton: {
+  navButton: {
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 100,
+    minWidth: 82,
   },
-  homeNavIconWrap: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  navIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,
   },
-  secondaryNavIconWrap: {
+  navIconWrapMuted: {
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  homeNavText: {
-    color: COLORS.white,
-    fontSize: 14,
+  navText: {
+    color: COLORS.softWhite,
+    fontSize: 13,
     fontWeight: "700",
+  },
+  centerActionButton: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: -28,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
 });

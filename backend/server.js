@@ -10,6 +10,9 @@ const checkinRoutes = require('./routes/checkin');
 const billingRoutes = require('./routes/billing');
 const stripeWebhookRoutes = require('./routes/stripeWebhook');
 const mawabRoutes = require('./routes/mawab');
+const adminRoutes = require('./routes/admin');
+const adminAuthRoutes = require('./routes/adminAuth');
+const adminPlatformRoutes = require('./routes/adminPlatform');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -46,6 +49,9 @@ app.use('/api/checkin', checkinRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/mawab', mawabRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/admin-auth', adminAuthRoutes);
+app.use('/api/admin-platform', adminPlatformRoutes);
 
 /* ============================================
    ✅ Test Routes
@@ -76,6 +82,10 @@ app.use((err, req, res, next) => {
 /* ============================================
    ✅ Start Server
 ============================================ */
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;

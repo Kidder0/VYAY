@@ -14,8 +14,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiFetch } from "../api";
+import { apiFetch, setMemberSession } from "../api";
+import PasswordField from "../components/PasswordField";
 import COLORS from "../theme/colors";
 import { useI18n } from "../i18n";
 
@@ -57,7 +57,7 @@ export default function LoginScreen({ navigation, route }) {
         }),
       });
 
-      await AsyncStorage.setItem("token", data.token);
+      await setMemberSession(data.token);
 
       navigation.reset({
         index: 0,
@@ -67,16 +67,6 @@ export default function LoginScreen({ navigation, route }) {
       Alert.alert(t("common_error"), error.message || "Login failed");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const resetApp = async () => {
-    try {
-      await AsyncStorage.removeItem("token");
-      await AsyncStorage.removeItem("hasSeenOnboarding_v2");
-      Alert.alert(t("common_success"), "Close app completely and reopen.");
-    } catch (error) {
-      Alert.alert(t("common_error"), "Unable to reset app state");
     }
   };
 
@@ -106,10 +96,9 @@ export default function LoginScreen({ navigation, route }) {
                 keyboardType="email-address"
               />
 
-              <TextInput
+              <PasswordField
                 placeholder={t("login_password")}
                 placeholderTextColor={TEXT_MUTED}
-                secureTextEntry
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
@@ -146,11 +135,11 @@ export default function LoginScreen({ navigation, route }) {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.resetBtn}
-                onPress={resetApp}
+                style={styles.staffBtn}
+                onPress={() => navigation.navigate("AdminLogin")}
                 activeOpacity={0.8}
               >
-                <Text style={styles.resetText}>{t("login_reset_onboarding")}</Text>
+                <Text style={styles.staffText}>{t("admin_settings_access")}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -252,14 +241,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  resetBtn: {
+  staffBtn: {
     marginTop: 14,
     alignItems: "center",
   },
 
-  resetText: {
-    color: TEXT_MUTED,
-    fontSize: 12,
+  staffText: {
+    color: COLORS.softWhite,
     fontWeight: "700",
+    fontSize: 13,
   },
 });

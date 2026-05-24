@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,10 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiFetch } from "../api";
+import { apiFetch, clearMemberSession } from "../api";
 import * as Haptics from "expo-haptics";
 import COLORS from "../theme/colors";
 import { useI18n } from "../i18n";
@@ -114,27 +114,13 @@ export default function AccountScreen({ navigation }) {
 
   const fade = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(18)).current;
+  const hasLoadedOnceRef = useRef(false);
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, {
-        toValue: 1,
-        duration: 350,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 350,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async ({ showLoader = !hasLoadedOnceRef.current } = {}) => {
     try {
-      setLoading(true);
+      if (showLoader) {
+        setLoading(true);
+      }
 
       const [profileRes, membershipRes] = await Promise.all([
         apiFetch("/api/auth/profile"),
@@ -154,12 +140,36 @@ export default function AccountScreen({ navigation }) {
           has
         )
       );
+      hasLoadedOnceRef.current = true;
     } catch (err) {
       console.log("Account load error:", err?.message || err);
     } finally {
-      setLoading(false);
+      if (showLoader) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
 
   const handleLogout = () => {
     Alert.alert(t("account_logout_title"), t("account_logout_message"), [
@@ -168,7 +178,7 @@ export default function AccountScreen({ navigation }) {
         text: t("account_logout"),
         style: "destructive",
         onPress: async () => {
-          await AsyncStorage.removeItem("token");
+          await clearMemberSession();
           navigation.reset({
             index: 0,
             routes: [{ name: "Login" }],
@@ -290,6 +300,12 @@ export default function AccountScreen({ navigation }) {
             </View>
 
             <View style={styles.section}>
+              <MenuItem
+                icon="account-edit-outline"
+                label={t("edit_profile_title")}
+                subLabel={t("account_edit_profile_sub")}
+                onPress={() => navigation.navigate("EditProfile")}
+              />
               <MenuItem
                 icon="email-outline"
                 label={t("account_change_email")}

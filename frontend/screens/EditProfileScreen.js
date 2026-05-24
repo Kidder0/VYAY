@@ -54,23 +54,24 @@ export default function EditProfileScreen({ navigation }) {
   };
 
   const onSave = async () => {
-    if (!name.trim()) {
-      return Alert.alert(t("missing_title"), t("enter_name"));
-    }
+    const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
 
-    if (!phone.trim()) {
-      return Alert.alert(t("missing_title"), t("enter_phone"));
+    if (!trimmedName) {
+      return Alert.alert(t("missing_title"), t("enter_name"));
     }
 
     try {
       setSaving(true);
+      const payload = { name: trimmedName };
+
+      if (trimmedPhone) {
+        payload.phone_number = trimmedPhone;
+      }
 
       const res = await apiFetch("/api/auth/update-profile", {
         method: "PUT",
-        body: JSON.stringify({
-          name: name.trim(),
-          phone_number: phone.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       Alert.alert(t("common_success"), res.message || t("profile_updated"));
@@ -89,7 +90,7 @@ export default function EditProfileScreen({ navigation }) {
           <Ionicons name="chevron-back" size={24} color={YELLOW} />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>{t("account_title_compact")}</Text>
+        <Text style={styles.headerTitle}>{t("edit_profile_title")}</Text>
 
         <View style={styles.iconBtn} />
       </View>
@@ -117,6 +118,7 @@ export default function EditProfileScreen({ navigation }) {
                   style={styles.input}
                   placeholder={t("edit_profile_placeholder_name")}
                   placeholderTextColor={TEXT_MUTED}
+                  autoCapitalize="words"
                 />
 
                 <Text style={styles.label}>{t("edit_profile_email")}</Text>
@@ -126,15 +128,6 @@ export default function EditProfileScreen({ navigation }) {
                   style={[styles.input, styles.readonly]}
                   placeholderTextColor={TEXT_MUTED}
                 />
-
-                <TouchableOpacity
-                  style={styles.linkBtn}
-                  onPress={() => navigation.navigate("ChangeEmail")}
-                  activeOpacity={0.9}
-                >
-                  <Ionicons name="mail-outline" size={18} color={YELLOW} />
-                  <Text style={styles.linkText}>{t("edit_profile_change_email")}</Text>
-                </TouchableOpacity>
 
                 <Text style={styles.label}>{t("edit_profile_phone")}</Text>
                 <TextInput
@@ -156,10 +149,6 @@ export default function EditProfileScreen({ navigation }) {
                     {saving ? t("saving") : t("edit_profile_save")}
                   </Text>
                 </TouchableOpacity>
-
-                <Text style={styles.note}>
-                  {t("edit_profile_note")}
-                </Text>
               </View>
             </ScrollView>
           </TouchableWithoutFeedback>
@@ -236,24 +225,6 @@ const styles = StyleSheet.create({
     color: TEXT_MUTED,
   },
 
-  linkBtn: {
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: YELLOW,
-    borderRadius: 30,
-    paddingVertical: 12,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: BLACK_CARD,
-  },
-
-  linkText: {
-    color: YELLOW,
-    fontWeight: "900",
-  },
-
   primaryBtn: {
     marginTop: 20,
     backgroundColor: YELLOW,
@@ -270,13 +241,6 @@ const styles = StyleSheet.create({
     color: COLORS.darkText,
     fontWeight: "900",
     fontSize: 14,
-  },
-
-  note: {
-    marginTop: 12,
-    fontSize: 12,
-    color: TEXT_MUTED,
-    textAlign: "center",
   },
 
   center: {

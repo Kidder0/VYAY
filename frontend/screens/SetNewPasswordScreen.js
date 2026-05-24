@@ -1,11 +1,8 @@
 import React, { useState } from "react";
 import {
-  View,
   Text,
-  TextInput,
   StyleSheet,
   Alert,
-  Pressable,
   Platform,
   KeyboardAvoidingView,
   ScrollView,
@@ -16,7 +13,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiFetch } from "../api";
+import { apiFetch, clearMemberSession } from "../api";
+import PasswordField from "../components/PasswordField";
 import COLORS from "../theme/colors";
 import { useI18n } from "../i18n";
 
@@ -33,8 +31,6 @@ export default function SetNewPasswordScreen({ navigation, route }) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleChangePassword = async () => {
     if (!email || !otp) {
@@ -62,7 +58,7 @@ export default function SetNewPasswordScreen({ navigation, route }) {
         }),
       });
 
-      await AsyncStorage.removeItem("token");
+      await clearMemberSession();
       await AsyncStorage.removeItem("user");
 
       navigation.reset({
@@ -92,44 +88,22 @@ export default function SetNewPasswordScreen({ navigation, route }) {
               <Text style={styles.title}>{t("set_password_title")}</Text>
               <Text style={styles.sub}>{t("set_password_sub", { email: email || "" })}</Text>
 
-              <View style={styles.row}>
-                <TextInput
-                  placeholder={t("set_password_new")}
-                  placeholderTextColor={MUTED}
-                  style={[styles.input, styles.inputFlex]}
-                  secureTextEntry={!showNew}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                />
-                <Pressable
-                  style={styles.toggleBtn}
-                  onPress={() => setShowNew((v) => !v)}
-                >
-                  <Text style={styles.toggleText}>
-                    {showNew ? t("hide") : t("show")}
-                  </Text>
-                </Pressable>
-              </View>
+              <PasswordField
+                placeholder={t("set_password_new")}
+                placeholderTextColor={MUTED}
+                style={styles.input}
+                value={newPassword}
+                onChangeText={setNewPassword}
+              />
 
-              <View style={styles.row}>
-                <TextInput
-                  placeholder={t("set_password_confirm")}
-                  placeholderTextColor={MUTED}
-                  style={[styles.input, styles.inputFlex]}
-                  secureTextEntry={!showConfirm}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  onSubmitEditing={handleChangePassword}
-                />
-                <Pressable
-                  style={styles.toggleBtn}
-                  onPress={() => setShowConfirm((v) => !v)}
-                >
-                  <Text style={styles.toggleText}>
-                    {showConfirm ? t("hide") : t("show")}
-                  </Text>
-                </Pressable>
-              </View>
+              <PasswordField
+                placeholder={t("set_password_confirm")}
+                placeholderTextColor={MUTED}
+                style={styles.input}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                onSubmitEditing={handleChangePassword}
+              />
 
               <Text style={styles.note}>{t("set_password_note")}</Text>
 
@@ -186,12 +160,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-
   input: {
     backgroundColor: COLORS.inputBg,
     borderWidth: 1,
@@ -200,26 +168,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 14,
     color: COLORS.white,
-  },
-
-  inputFlex: {
-    flex: 1,
-  },
-
-  toggleBtn: {
-    marginLeft: 10,
-    backgroundColor: COLORS.inputBg,
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-
-  toggleText: {
-    color: YELLOW,
-    fontWeight: "800",
-    fontSize: 12,
+    marginBottom: 14,
   },
 
   note: {

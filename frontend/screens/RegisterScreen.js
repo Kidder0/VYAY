@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiFetch } from "../api";
+import PasswordField from "../components/PasswordField";
 import COLORS from "../theme/colors";
 import { useI18n } from "../i18n";
 
@@ -116,10 +117,9 @@ export default function RegisterScreen({ navigation }) {
                 keyboardType="phone-pad"
               />
 
-              <TextInput
+              <PasswordField
                 placeholder={t("register_password")}
                 placeholderTextColor={MUTED}
-                secureTextEntry
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}

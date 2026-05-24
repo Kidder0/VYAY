@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { apiFetch } from "../api";
+import { adminApiFetch } from "../api";
 import COLORS from "../theme/colors";
 import { useI18n } from "../i18n";
 
@@ -17,7 +17,8 @@ export default function StaffScannerScreen({ navigation, route }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [status, setStatus] = useState({ type: "idle", msg: "" });
-  const [branchId] = useState(route?.params?.branchId || 1);
+  const [clubId] = useState(route?.params?.clubId || 1);
+  const [clubName] = useState(route?.params?.clubName || "");
 
   const cooldownRef = useRef(false);
 
@@ -35,30 +36,34 @@ export default function StaffScannerScreen({ navigation, route }) {
     setStatus({ type: "loading", msg: t("staff_scanner_verifying") });
 
     try {
-      const res = await apiFetch("/api/checkin/verify", {
+      const res = await adminApiFetch(`/api/admin-platform/clubs/${clubId}/checkins/verify`, {
         method: "POST",
-        skipAuth: true,
         body: JSON.stringify({
           membership_code: membershipCode,
-          branch_id: branchId,
         }),
       });
 
       const message = String(res?.message || "");
+      const member = res?.member || {};
+      const alerts = res?.alerts || [];
+      const hasBlock = alerts.some((a) => a.severity === "block");
+      const hasWarn = alerts.some((a) => a.severity === "warn");
+      const nameLine = member?.name ? ` • ${member.name}` : "";
+      const alertLine = alerts.length ? ` • Alerts: ${alerts.length}` : "";
 
       if (message.toLowerCase().includes("successful")) {
         setStatus({
           type: "ok",
-          msg: `✅ ${message}\n${res.user?.name || ""}${res.branch?.name ? ` • ${res.branch.name}` : ""}`,
+          msg: `✓ ${message}${nameLine}${alertLine}`,
         });
       } else if (message.toLowerCase().includes("already checked")) {
         setStatus({
           type: "warn",
-          msg: `ℹ️ ${message}\n${res.user?.name || ""}${res.branch?.name ? ` • ${res.branch.name}` : ""}`,
+          msg: `ℹ️ ${message}${nameLine}${alertLine}`,
         });
       } else {
         setStatus({
-          type: "err",
+          type: hasBlock ? "err" : hasWarn ? "warn" : "err",
           msg: message || t("staff_scanner_verification_failed"),
         });
       }
@@ -84,11 +89,7 @@ export default function StaffScannerScreen({ navigation, route }) {
   if (!permission) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-        <ActivityIndicator
-          style={{ marginTop: 100 }}
-          color={COLORS.primary}
-          size="large"
-        />
+        <ActivityIndicator style={{ marginTop: 100 }} color={COLORS.primary} size="large" />
       </SafeAreaView>
     );
   }
@@ -100,11 +101,7 @@ export default function StaffScannerScreen({ navigation, route }) {
           <Text style={styles.title}>{t("staff_scanner_title")}</Text>
           <Text style={styles.subTitle}>{t("staff_scanner_camera_required")}</Text>
 
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={requestPermission}
-            activeOpacity={0.9}
-          >
+          <TouchableOpacity style={styles.primaryBtn} onPress={requestPermission} activeOpacity={0.9}>
             <Text style={styles.primaryBtnText}>{t("staff_scanner_allow_camera")}</Text>
           </TouchableOpacity>
 
@@ -139,16 +136,7 @@ export default function StaffScannerScreen({ navigation, route }) {
               style={StyleSheet.absoluteFillObject}
               facing="back"
               barcodeScannerSettings={{
-                barcodeTypes: [
-                  "code128",
-                  "qr",
-                  "ean13",
-                  "ean8",
-                  "code39",
-                  "code93",
-                  "upc_a",
-                  "upc_e",
-                ],
+                barcodeTypes: ["code128", "qr", "ean13", "ean8", "code39", "code93", "upc_a", "upc_e"],
               }}
               onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
             />
@@ -171,11 +159,7 @@ export default function StaffScannerScreen({ navigation, route }) {
             )}
           </View>
 
-          <TouchableOpacity
-            style={styles.outlineBtn}
-            onPress={resetScan}
-            activeOpacity={0.9}
-          >
+          <TouchableOpacity style={styles.outlineBtn} onPress={resetScan} activeOpacity={0.9}>
             <Text style={styles.outlineBtnText}>{t("staff_scanner_scan_again")}</Text>
           </TouchableOpacity>
         </View>
@@ -188,7 +172,9 @@ export default function StaffScannerScreen({ navigation, route }) {
           <Text style={styles.outlineBtnText}>{t("common_back")}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.helper}>{t("staff_scanner_branch_id", { branchId })}</Text>
+        <Text style={styles.helper}>
+          {clubName ? t("staff_scanner_club_ready", { club: clubName }) : t("staff_scanner_club_id", { clubId })}
+        </Text>
       </View>
     </SafeAreaView>
   );
@@ -199,20 +185,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bgDeep,
   },
-
   container: {
     flex: 1,
     padding: 16,
     alignItems: "center",
   },
-
   title: {
     fontSize: 24,
     fontWeight: "900",
     color: COLORS.primary,
     marginTop: 8,
   },
-
   subTitle: {
     marginTop: 6,
     marginBottom: 14,
@@ -220,7 +203,6 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textAlign: "center",
   },
-
   card: {
     width: "100%",
     backgroundColor: COLORS.card,
@@ -230,7 +212,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     alignItems: "center",
   },
-
   cameraFrame: {
     width: "100%",
     height: 360,
@@ -240,13 +221,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
     backgroundColor: COLORS.bg,
   },
-
   overlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
   },
-
   scanBox: {
     width: "80%",
     height: 140,
@@ -255,13 +234,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "rgba(0,0,0,0.15)",
   },
-
   overlayText: {
     marginTop: 14,
     color: COLORS.white,
     fontWeight: "800",
   },
-
   statusBox: {
     width: "100%",
     marginTop: 12,
@@ -274,14 +251,12 @@ const styles = StyleSheet.create({
     minHeight: 52,
     justifyContent: "center",
   },
-
   statusText: {
     fontSize: 13,
     fontWeight: "900",
     textAlign: "center",
     lineHeight: 20,
   },
-
   primaryBtn: {
     width: "100%",
     backgroundColor: COLORS.primary,
@@ -290,12 +265,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 14,
   },
-
   primaryBtnText: {
     color: COLORS.darkText,
     fontWeight: "900",
   },
-
   outlineBtn: {
     width: "100%",
     borderWidth: 1.5,
@@ -306,12 +279,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
     backgroundColor: "#161616",
   },
-
   outlineBtnText: {
     color: COLORS.primary,
     fontWeight: "900",
   },
-
   helper: {
     marginTop: 12,
     color: COLORS.muted,

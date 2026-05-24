@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -15,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../api";
+import PasswordField from "../components/PasswordField";
 import COLORS from "../theme/colors";
 import { useI18n } from "../i18n";
 
@@ -77,21 +77,19 @@ export default function ChangePasswordScreen({ navigation }) {
           >
             <View style={styles.card}>
               <Text style={styles.label}>{t("change_password_current")}</Text>
-              <TextInput
+              <PasswordField
                 value={currentPassword}
                 onChangeText={setCurrentPassword}
                 style={styles.input}
-                secureTextEntry
                 placeholder={t("change_password_placeholder_current")}
                 placeholderTextColor={TEXT_MUTED}
               />
 
               <Text style={styles.label}>{t("change_password_new")}</Text>
-              <TextInput
+              <PasswordField
                 value={newPassword}
                 onChangeText={setNewPassword}
                 style={styles.input}
-                secureTextEntry
                 placeholder={t("change_password_placeholder_new")}
                 placeholderTextColor={TEXT_MUTED}
               />
